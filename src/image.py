@@ -60,10 +60,6 @@ class img:
             if np.isnan(skewness) or np.isinf(skewness):
                 skewness = 0
             moments.extend([mean, std, skewness])
-        if len(moments) != 9:
-            print(f"Warning: {self.name} could not be read.")
-            self.skip = True
-            return None
         return np.array(moments)
 
     def compute_daist_feature(self, image):
@@ -77,32 +73,22 @@ class img:
             orientations=16,
             normalization="l2",
         ).flatten()
-        # print(daisy_feature.shape)
         return daisy_feature
 
     def preprocess(self):
-        self.data = []
         try:
-            if self.window is None:
+            if  self.window is None:
                 img = cv2.imread(self.path + self.name)
             else:
-                # it means that the image is already loaded
                 img = self.window
             img = cv2.resize(img, self.standard_size)
             self.data.extend(self.compute_daist_feature(img))
             self.data.extend(self.compute_color_moments(img))
         except Exception as e:
-            print(self.standard_size)
             print(f"Error in preprocess: {e}")
             self.skip = True
             self.data = None
 
 
 def _load_single_image(img_dir, img_name, standard_size, train):
-    try:
-        return img(
-            path=img_dir, name=img_name, standard_size=standard_size, train=train
-        )
-    except Exception as e:
-        print(f"Error in _load_single_image: {e}")
-        return None
+    return img(img_dir, img_name, standard_size, train)

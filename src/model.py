@@ -12,9 +12,6 @@ import warnings
 import joblib
 import datetime
 from src.image import img
-from sklearn.ensemble import BaggingClassifier
-from sklearn.metrics import confusion_matrix
-import seaborn as sns
 
 
 class model:
@@ -25,20 +22,26 @@ class model:
         self.name = None
         self.n_jobs = n_jobs
 
-    def save(self, path="src/models"):
+    def save(self, path):
         date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         model_path = path + "/model_" + date + ".pkl"
         joblib.dump(self.classifier, model_path)
 
-    def load(self, path):
-        self.classifier = joblib.load(path)
-
     def predict_window(self, window):
         window = img(self.standard_size, window=window)
+        
         window.preprocess()
-        return self.classifier.predict(window.data)
+        
+        return self.classifier.predict([window.data])
+    
+    def predict_proba_window(self, window):
+        window = img(self.standard_size, window=window)
+        
+        window.preprocess()
+        
+        return self.classifier.predict_proba([window.data])
 
-    def train_svm(self, train_data, max_iter=1000, verbose=0, n_jobs=-1):
+    def train_svm(self, train_data, max_iter=1000, verbose=0):
         self.name = "SVM"
         X = [img.data for img in train_data.images]
         y = [img.label for img in train_data.images]
@@ -48,46 +51,13 @@ class model:
             shrinking=True,
             random_state=self.seed,
             max_iter=max_iter,
-            class_weight="balanced",
             verbose=verbose,
-            probability=True,
-        )
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=self.seed
-        )
-
-        self.classifier.fit(X_train, y_train)
-
-        # on test data accuracy_score
-        print(
-            f"Accuracy on test data: {accuracy_score(y_test, self.classifier.predict(X_test))}"
-        )
-
-    def train_svm2(self, train_data, max_iter=1000, verbose=0, n_jobs=-1):
-        self.name = "SVM"
-        X = [img.data for img in train_data.images]
-        y = [img.label for img in train_data.images]
-
-        svm = SVC(
-            kernel="linear",
-            shrinking=True,
-            random_state=self.seed,
-            max_iter=max_iter,
             class_weight="balanced",
         )
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, random_state=self.seed
         )
-
-        self.classifier = BaggingClassifier(
-            estimator=svm,
-            n_estimators=10,
-            n_jobs=n_jobs,
-            verbose=verbose,
-        )
-
         self.classifier.fit(X_train, y_train)
-
         # on test data accuracy_score
         print(
             f"Accuracy on test data: {accuracy_score(y_test, self.classifier.predict(X_test))}"
@@ -241,32 +211,12 @@ class model:
 
     def evaluate(self, val_data):
         X = [img.data for img in val_data.images]
+        # X = np.array(X) / 255
         y = [img.label for img in val_data.images]
-
-        if self.name == "XGBoost" and self.label_encoder:
-            y = self.label_encoder.transform(y)
-
+        if self.name == "XGBoost":
+            y = val_data.LabelEncoder.transform(y)
         y_pred = self.classifier.predict(X)
         print(f"Accuracy on validation data: {accuracy_score(y, y_pred)}")
-
-        # plot confusion matrix
-        cm = confusion_matrix(y, y_pred)
-        cm_normalized = cm.astype("float") / cm.sum(axis=1)[:, np.newaxis]
-        # Get unique labels
-        unique_labels = list(set(y))
-
-        plt.figure(figsize=(10, 7))
-        sns.heatmap(
-            cm_normalized,
-            annot=True,
-            fmt=".2%",
-            xticklabels=unique_labels,
-            yticklabels=unique_labels,
-            cmap="Blues",
-        )
-        plt.xlabel("Predicted")
-        plt.ylabel("Truth")
-        plt.show()
 
         report = classification_report(y, y_pred)
         print(report)
