@@ -267,7 +267,7 @@ def detection_images_in_folder(folder_path, model, csv_path):
             image = cv2.imread(image_path)
             detections = detect_traffic_signs_without_piramid(image, model)
             boxes = np.array(detections)
-            picked_boxes = non_max_suppression(boxes, 0.2)  # 阈值0.3可根据需要调整
+            picked_boxes = non_max_suppression(boxes, 0.2)  
 
             for (x1, y1, x2, y2, label, max_probabilities) in picked_boxes:
                 x1, y1, x2, y2, max_probabilities = int(x1), int(y1), int(x2), int(y2), float(max_probabilities)
@@ -281,6 +281,232 @@ detection_images_in_folder('C:/Users/23158/Desktop/SY32PROJET/dataset2/val/image
     
   
 #%%get results
+
+detections_path = 'detections.csv'
+labels_path = 'C:/Users/23158/Desktop/SY32PROJET/dataset2/val/labels/'
+
+detections_df = pd.read_csv(detections_path, header=None)
+detections_df.columns = ['image', 'x1', 'y1', 'x2', 'y2', 'score','label']
+
+print(detections_df)
+
+images_path = 'C:/Users/23158/Desktop/SY32PROJET/dataset2/val/images/'
+output_path = 'C:/Users/23158/Desktop/SY32PROJET/dataset2/val/output/'
+os.makedirs(output_path, exist_ok=True)
+
+for image_name in detections_df['image'].unique():
+    image_path = os.path.join(images_path, image_name)
+    image = cv2.imread(image_path)
+    
+    if image is None:
+        print(f"no: {image_path}")
+        continue
+    
+    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    
+    fig, ax = plt.subplots(1)
+    ax.imshow(image_rgb)
+    
+   
+    detections = detections_df[detections_df['image'] == image_name]
+    for _, row in detections.iterrows():
+        rect = plt.Rectangle((row['x1'], row['y1']), row['x2'] - row['x1'], row['y2'] - row['y1'], edgecolor='r', facecolor='none')
+        ax.add_patch(rect)
+        label_x = row['x1']
+        label_y = row['y2'] + 5  
+        ax.text(label_x, label_y, row['label'], color='r', fontsize=12)
+    
+
+    label_file = os.path.join(labels_path, image_name.replace('.jpg', '.csv'))
+    if os.path.exists(label_file):
+        with open(label_file, 'r') as f:
+            for line in f.readlines():
+                parts = line.strip().split(',')
+                if len(parts) < 5:
+                    print(f"no: {label_file} line: {line}")
+                    continue
+                label = parts[4]
+                if label != 'ff':
+                    try:
+                        x1, y1, x2, y2 = map(float, parts[0:4])
+                        rect = plt.Rectangle((x1, y1), x2 - x1, y2 - y1, edgecolor='g', facecolor='none')
+                        ax.add_patch(rect)
+                    except ValueError as e:
+                        print(f"error: {e} in {label_file} line: {line}")
+    
+    plt.axis('off')
+    output_image_path = os.path.join(output_path, image_name)
+    plt.savefig(output_image_path)
+    plt.close()
+    print(f"save: {output_image_path}")
+#%%validation.csv
+import os
+import pandas as pd
+
+
+val_path = 'C:/Users/23158/Desktop/SY32PROJET/dataset2/val/labels'
+
+
+csv_files = [file for file in os.listdir(val_path) if file.endswith('.csv')]
+
+
+dfs = []
+
+
+for csv_file in csv_files:
+    file_path = os.path.join(val_path, csv_file)
+    try:
+       
+        df = pd.read_csv(file_path, header=None)
+        if df.empty:
+          
+            continue
+        
+ 
+        image_name = os.path.splitext(csv_file)[0]
+        
+        df.insert(0, 'num_image', image_name + '.jpg')
+       
+        dfs.append(df)
+    except pd.errors.EmptyDataError:
+     
+        print(f"'{csv_file}'empty")
+
+if not dfs:
+    print("nocsv")
+
+else:
+   
+    merged_df = pd.concat(dfs, ignore_index=True)
+
+    output_file = 'validations.csv'
+    merged_df.to_csv(output_file, index=False, header=False)
+
+    print(f"save{output_file}")
+#%% analays
+import pandas as pd
+
+
+
+# Load the data
+validations = pd.read_csv('validations.csv',header=None)
+detections = pd.read_csv('detections.csv',header=None)
+
+# Filter out the 'ff' labels
+validations = validations[validations.iloc[:, 5] != 'ff']
+detections = detections[detections.iloc[:, 6] != 'ff']
+
+
+
+# Initialize lists to store y (ground truth) and y_pred (predictions)
+y = []
+y_pred = []
+matching_validation_row=[]
+# Define IoU function
+def iou(box1, box2):
+    # Unpack the coordinates
+    x1_min, y1_min, x1_max, y1_max = box1
+    x2_min, y2_min, x2_max, y2_max = box2
+
+    # Calculate the intersection coordinates
+    inter_x_min = max(x1_min, x2_min)
+    inter_y_min = max(y1_min, y2_min)
+    inter_x_max = min(x1_max, x2_max)
+    inter_y_max = min(y1_max, y2_max)
+
+    # Calculate the intersection area
+    inter_area = max(0, inter_x_max - inter_x_min) * max(0, inter_y_max - inter_y_min)
+
+    # Calculate the areas of each box
+    box1_area = (x1_max - x1_min) * (y1_max - y1_min)
+    box2_area = (x2_max - x2_min) * (y2_max - y2_min)
+
+    # Calculate the union area
+    union_area = box1_area + box2_area - inter_area
+
+    # Calculate the IoU
+    iou = inter_area / union_area
+
+    return iou
+
+# Match detections with ground truth
+for _, detection_row in detections.iterrows():
+    image_id_d, x_min_d, y_min_d, x_max_d, y_max_d, score_d, label_d = detection_row
+    max_iou = 0
+    matching_validation = 'none'
+
+    for _, validation_row in validations.iterrows():
+        image_id_v, x_min_v, y_min_v, x_max_v, y_max_v, label_v = validation_row
+        
+        if image_id_v == image_id_d and label_v == label_d:
+            iou_value = iou((x_min_v, y_min_v, x_max_v, y_max_v), (x_min_d, y_min_d, x_max_d, y_max_d))
+            
+            if iou_value > max_iou:
+                max_iou = iou_value
+                matching_validation = label_v
+                
+                matching_validation_row.append(_)
+    
+    # Add ground truth and prediction based on maximum IoU
+    #if matching_validation:
+    y_pred.append(label_d)
+    y.append(matching_validation)
+
+for _, validation_row in validations.iterrows():
+    image_id_v, x_min_v, y_min_v, x_max_v, y_max_v, label_v = validation_row
+    if _  not in matching_validation_row:
+        y.append(label_v)
+        y_pred.append('none')
+     
+
+print(len(y_pred))
+print(len(y))
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
+# plot confusion matrix
+cm = confusion_matrix(y, y_pred)
+cm_normalized = cm.astype("float") / cm.sum(axis=1)[:, np.newaxis]
+# Get unique labels
+unique_labels = list(set(y))
+
+plt.figure(figsize=(10, 7))
+sns.heatmap(
+    cm_normalized,
+    annot=True,
+    fmt=".2%",
+    xticklabels=unique_labels,
+    yticklabels=unique_labels,
+    cmap="Blues",
+)
+plt.xlabel("Predicted")
+plt.ylabel("Truth")
+plt.show()
+
+precision = {}
+recall = {}
+
+for i in range(len(unique_labels)):
+    cls = unique_labels[i]
+    tp = cm[i, i]
+    fp = np.sum(cm[:, i]) - tp
+    fn = np.sum(cm[i, :]) - tp
+    
+    precision[cls] = tp / (tp + fp) if tp + fp > 0 else 0
+    recall[cls] = tp / (tp + fn) if tp + fn > 0 else 0
+
+print("Precision:\n", precision)
+print("\nRecall:\n", recall)
+
+ap_per_class = []
+for cls in unique_labels:
+    if precision[cls] + recall[cls] > 0:
+        ap_per_class.append(precision[cls] * recall[cls] / (precision[cls] + recall[cls]))
+
+mAP = np.mean(ap_per_class) if ap_per_class else 0
+
+print("\nmAP:\n", mAP)
 
 
 #%% select_region_and_predict
@@ -370,127 +596,7 @@ plt.title('Detections')
 plt.axis('off')  
 plt.show()
 
-#%%
-import os
-import numpy as np
-import pandas as pd
-from sklearn.metrics import confusion_matrix, precision_recall_fscore_support, average_precision_score
-from collections import defaultdict
 
-def read_labels(label_folder):
-    label_data = defaultdict(list)
-    for filename in os.listdir(label_folder):
-        if filename.endswith(".txt"):
-            with open(os.path.join(label_folder, filename), 'r') as file:
-                lines = file.readlines()
-                for line in lines:
-                    parts = line.strip().split(',')
-                    label = parts[4].strip()  # 假设标签在第五列
-                    if label != 'ff':  # 忽略 'ff' 类别
-                        x1, y1, x2, y2 = map(float, parts[:4])  # 假设 x1, y1, x2, y2 在前四列
-                        label_data[filename].append((x1, y1, x2, y2, label))
-    return label_data
-
-def read_predictions(csv_path):
-    df = pd.read_csv(csv_path)
-    pred_data = defaultdict(list)
-    for idx, row in df.iterrows():
-        filename = row['Num img']
-        x1, y1 = int(row['Coin h-g x']), int(row['Coin h-g y'])
-        x2, y2 = int(row['Coin b-d x']), int(row['Coin b-d y'])
-        score = float(row['Score'])
-        label = row['Classe']
-        pred_data[filename].append((x1, y1, x2, y2, label, score))
-    return pred_data
-
-def calculate_iou(box1, box2):
-    x1, y1, x2, y2 = box1
-    x3, y3, x4, y4 = box2
-    
-    xi1 = max(x1, x3)
-    yi1 = max(y1, y3)
-    xi2 = min(x2, x4)
-    yi2 = min(y2, y4)
-    
-    inter_area = max(xi2 - xi1, 0) * max(yi2 - yi1, 0)
-    area1 = (x2 - x1) * (y2 - y1)
-    area2 = (x4 - x3) * (y4 - y3)
-    iou = inter_area / float(area1 + area2 - inter_area)
-    
-    return iou
-
-def compute_confusion_matrix(labels, predictions, classes):
-    confusion = np.zeros((len(classes), len(classes)), dtype=int)
-    class_map = {cls: idx for idx, cls in enumerate(classes)}
-    
-    for filename, label_boxes in labels.items():
-        if filename in predictions:
-            pred_boxes = predictions[filename]
-            label_assigned = np.zeros(len(label_boxes), dtype=bool)
-            
-            for pred_box in pred_boxes:
-                max_iou = 0
-                assigned_idx = -1
-                
-                for i, label_box in enumerate(label_boxes):
-                    iou = calculate_iou(pred_box[:4], label_box[:4])
-                    if iou > max_iou:
-                        max_iou = iou
-                        assigned_idx = i
-                
-                if assigned_idx != -1:
-                    label_assigned[assigned_idx] = True
-                    confusion[class_map[label_boxes[assigned_idx][4]], class_map[pred_box[4]]] += 1
-                else:
-                    confusion[class_map['none'], class_map[pred_box[4]]] += 1  # False Positive
-
-            for i, label_box in enumerate(label_boxes):
-                if not label_assigned[i]:
-                    confusion[class_map[label_box[4]], class_map['none']] += 1  # False Negative
-    
-    return confusion
-
-def evaluate_results(label_folder, csv_path):
-    labels = read_labels(label_folder)
-    predictions = read_predictions(csv_path)
-    
-    classes = set()
-    for label_boxes in labels.values():
-        for box in label_boxes:
-            classes.add(box[4])
-    classes.add('none')  # 添加 'none' 类别用于 False Positives 和 False Negatives
-    classes = list(classes)
-    
-    confusion = compute_confusion_matrix(labels, predictions, classes)
-    
-    y_true = []
-    y_pred = []
-    for i, cls in enumerate(classes):
-        for j in range(confusion.shape[0]):
-            y_true.extend([i] * confusion[j, i])
-            y_pred.extend([j] * confusion[j, i])
-    
-    precision, recall, fscore, _ = precision_recall_fscore_support(y_true, y_pred, average=None, labels=range(len(classes)))
-    mAP = average_precision_score(y_true, y_pred, average='macro')
-    
-    print("Confusion Matrix:")
-    print(confusion)
-    print()
-    
-    print("Precision:")
-    for i, cls in enumerate(classes):
-        print(f"{cls}: {precision[i]}")
-    print()
-    
-    print("Recall:")
-    for i, cls in enumerate(classes):
-        print(f"{cls}: {recall[i]}")
-    print()
-    
-    print(f"mAP: {mAP}")
-
-# Example usage
-evaluate_results('C:/Users/23158/Desktop/SY32PROJET/dataset2/val/labels', 'detections.csv')
 
 
 
