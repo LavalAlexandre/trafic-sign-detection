@@ -24,7 +24,7 @@ class img:
             cropped_index = parts.index("cropped")
             return parts[cropped_index + 1]
         except (ValueError, IndexError):
-            print(f"Warning: {self.name} could not be read.")
+            #print(f"Warning: {self.name} could not be read.")
             return None
 
     def color_preprocess(self, img):
