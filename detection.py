@@ -10,7 +10,7 @@ import numpy as np
 from src.model import model
 import pandas as pd
 import os
-
+import selectivesearch
 
 
 
@@ -203,6 +203,59 @@ def detect_traffic_signs_without_piramid(image, model, step_size_ratio=0.2, min_
     return detections
 
 
+def selective_search(image):
+    # 使用selectivesearch库进行选择搜索
+    image_int = (image * 255).astype(np.uint8)
+    img_lbl, regions = selectivesearch.selective_search(
+        image_int, scale=250, sigma=0.9, min_size=100)
+    
+    candidates = set()
+    for r in regions:
+        # 排除重复的候选区域
+        if r['rect'] in candidates:
+            continue
+        # 排除太小的区域
+        if r['size'] < 10000:
+            continue
+        x, y, w, h = r['rect']
+        # 排除扭曲的候选区域
+        if w == 0 or h == 0 or w / h > 2 or h / w > 3:
+            continue
+        candidates.add(r['rect'])
+    
+    # 遍历候选区域并绘制矩形框
+    for (x, y, w, h) in candidates:
+        cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+    
+    # 显示结果图片
+    plt.figure()
+    plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    plt.axis('off')
+    plt.show()
+    
+    return candidates
+
+def detect_traffic_signs_with_selective_search(image, model):
+    detections = []
+    candidates = selective_search(image)
+    
+    for (x, y, w, h) in candidates:
+        window = image[y:y + h, x:x + w]
+        if window.shape[0] != h or window.shape[1] != w:
+            continue
+
+        prediction = model.predict_window(window)
+        prediction_probabilities = model.predict_proba_window(window)
+        max_probabilities = np.max(prediction_probabilities, axis=1)
+        prob = max_probabilities[0]
+        if prediction != 'none' and prediction != 'frouge' and prediction != 'forange' and prediction != 'fvert' and max_probabilities[0] > 0.8:
+            detections.append((x, y, x + w, y + h, prediction[0], prob))
+        elif (prediction == 'frouge' or prediction == 'forange' or prediction == 'fvert') and max_probabilities[0] > 0.8:
+            detections.append((x, y, x + w, y + h, prediction[0], prob))
+    
+    print(detections)
+    return detections
+
 def non_max_suppression(boxes, overlap_thresh):
     if len(boxes) == 0:
         return []
@@ -249,7 +302,7 @@ print(my_model.classifier)
 
 #%%
 
-#akdshj
+akdshj
 #%% detection all
 def detection_image(image_path, model,csv_path):
     image = cv2.imread(image_path)
@@ -282,7 +335,7 @@ def detection_images_in_folder(folder_path, model, csv_path):
             image_path = os.path.join(folder_path, filename)
             print(filename)
             image = cv2.imread(image_path)
-            detections = detect_traffic_signs_without_piramid(image, model)
+            detections = detect_traffic_signs_with_selective_search(image, model)
             boxes = np.array(detections)
             picked_boxes = non_max_suppression(boxes, 0.1)  
 
@@ -594,27 +647,28 @@ def select_region_and_predict(image_path, model):
     cv2.destroyAllWindows()
 
 # exemple
-image_path = 'C:/Users/23158/Desktop/SY32PROJET/dataset2/val/images/0196.jpg'
+image_path = 'C:/Users/23158/Desktop/SY32PROJET/dataset2/val/images/0871.jpg'
 result = select_region_and_predict(image_path, my_model)
 print("Prediction Result:", result)
 
 #%% stop
-image = cv2.imread('C:/Users/23158/Desktop/SY32PROJET/dataset2/val/images/0088.jpg')
-detections = detect_traffic_signs_without_piramid(image, my_model)
+image = cv2.imread('C:/Users/23158/Desktop/SY32PROJET/dataset2/val/images/0871.jpg')
+output_image = image.copy()
+detections = detect_traffic_signs_with_selective_search(image, my_model)
 boxes = np.array(detections)
 picked_boxes = non_max_suppression(boxes, 0.1)
 #picked_boxes=boxes
 print(picked_boxes)
 for (x1, y1, x2, y2, label,max_probabilities) in picked_boxes:  
     x1, y1, x2, y2 ,max_probabilities= int(x1), int(y1), int(x2), int(y2),float(max_probabilities)
-    cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    cv2.rectangle(output_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
     
     text = f"{label}: {max_probabilities:.2f}"
     # 显示文本
-    cv2.putText(image, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+    cv2.putText(output_image, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
-
-plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))  
+plt.figure()
+plt.imshow(cv2.cvtColor(output_image, cv2.COLOR_BGR2RGB))  
 plt.title('Detections')  
 plt.axis('off')  
 plt.show()
