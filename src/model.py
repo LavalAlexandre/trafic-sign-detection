@@ -19,7 +19,7 @@ import cv2
 class model:
     def __init__(self, seed=42, n_jobs=-1):
         self.seed = seed
-        self.standard_size = (100, 100)
+        self.standard_size = (64, 64)
         self.classifier = None
         self.name = None
         self.n_jobs = n_jobs
@@ -57,6 +57,7 @@ class model:
             max_iter=max_iter,
             verbose=verbose,
             class_weight="balanced",
+            probability=True,
             C=10
         )
         X_train, X_test, y_train, y_test = train_test_split(

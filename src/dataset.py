@@ -54,12 +54,6 @@ class dataset:
         for i in range(len(interdiction_imgs)//2):
             self.images.remove(interdiction_imgs[i])
 
-        #remove 1/3 of the none images
-
-        none_imgs = [img for img in self.images if img.label == "none"]
-
-        for i in range(len(none_imgs)//3):
-            self.images.remove(none_imgs[i])
 
 
 
