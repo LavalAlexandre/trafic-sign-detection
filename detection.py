@@ -418,3 +418,38 @@ def select_region_and_predict(image_path, model):
             break
 
     cv2.destroyAllWindows()
+
+
+
+def build_detection_validation(label_path):
+
+    csv_files = [file for file in os.listdir(label_path) if file.endswith('.csv')]
+
+    dfs = []
+
+    for csv_file in csv_files:
+        file_path = os.path.join(label_path, csv_file)
+        try:
+
+            df = pd.read_csv(file_path, header=None)
+            if df.empty:
+                continue
+
+            image_name = os.path.splitext(csv_file)[0]
+
+            df.insert(0, 'num_image', image_name + '.jpg')
+
+            dfs.append(df)
+        except pd.errors.EmptyDataError:
+
+            print(f"'{csv_file}'empty")
+
+    if not dfs:
+        print("nocsv")
+
+    else:
+
+        merged_df = pd.concat(dfs, ignore_index=True)
+        output_file = 'validations.csv'
+        merged_df.to_csv(output_file, index=False, header=False)
+        print(f"save{output_file}")

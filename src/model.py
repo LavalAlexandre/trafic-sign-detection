@@ -47,6 +47,11 @@ class model:
         self.name = "SVM"
         X = [img.data for img in train_data.images]
         y = [img.label for img in train_data.images]
+        #print all y different values
+        #convert all nonetype in y to "none"
+        y = ["none" if i == None else i for i in y]
+
+
         #print number of nan values
         print(f"Number of nan values in X: {np.isnan(X).sum()}")
 
