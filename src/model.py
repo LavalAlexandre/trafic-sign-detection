@@ -12,7 +12,9 @@ import warnings
 import joblib
 import datetime
 from src.image import img
-
+from sklearn.metrics import confusion_matrix
+import seaborn as sns
+import cv2
 
 class model:
     def __init__(self, seed=42, n_jobs=-1):
@@ -29,22 +31,24 @@ class model:
 
     def predict_window(self, window):
         window = img(self.standard_size, window=window)
-        
+
         window.preprocess()
-        
+
         return self.classifier.predict([window.data])
-    
+
     def predict_proba_window(self, window):
         window = img(self.standard_size, window=window)
-        
+
         window.preprocess()
-        
+
         return self.classifier.predict_proba([window.data])
 
     def train_svm(self, train_data, max_iter=1000, verbose=0):
         self.name = "SVM"
         X = [img.data for img in train_data.images]
         y = [img.label for img in train_data.images]
+        #print number of nan values
+        print(f"Number of nan values in X: {np.isnan(X).sum()}")
 
         self.classifier = SVC(
             kernel="linear",
@@ -53,6 +57,7 @@ class model:
             max_iter=max_iter,
             verbose=verbose,
             class_weight="balanced",
+            C=10
         )
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, random_state=self.seed
@@ -62,6 +67,9 @@ class model:
         print(
             f"Accuracy on test data: {accuracy_score(y_test, self.classifier.predict(X_test))}"
         )
+        #classification_report on test data
+        print(classification_report(y_test, self.classifier.predict(X_test)))
+
 
     def train_elastic_net(self, train_data, max_iter=1000, verbose=0):
         self.name = "Elastic Net"
@@ -220,6 +228,28 @@ class model:
 
         report = classification_report(y, y_pred)
         print(report)
+
+        # plot confusion matrix percentage with correct labels
+
+        cm = confusion_matrix(y, y_pred, normalize='true', labels=self.classifier.classes_)
+
+        # Plot the confusion matrix
+        sns.heatmap(cm, annot=True, cmap="Blues")
+        plt.xlabel("Predicted")
+        plt.ylabel("True")
+        plt.title("Confusion Matrix")
+        plt.show()
+        # %%
+
+        #plot the wrong predictions with the both the correct and the wrong labels
+        wrong_predictions = [img for img, label, pred in zip(val_data.images, y, y_pred) if label != pred]
+        for img in wrong_predictions:
+            plt.imshow(cv2.imread(img.path + img.name))
+            plt.title(f"Correct label: {img.label}, Predicted label: {y_pred[val_data.images.index(img)]}")
+
+            plt.show()
+
+
         return accuracy_score(y, y_pred)
 
     def plot_learning_curve(self, train_data, max_iter=2000, verbose=0):

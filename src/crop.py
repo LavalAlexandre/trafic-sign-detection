@@ -18,7 +18,7 @@ crop_sizes = [
 ]
 
 
-def random_crop_img(img, n_crops=5):
+def random_crop_img(img, n_crops=1):
     w, h = img.size
     imgs = []
     for w_crop, h_crop in crop_sizes:
@@ -58,7 +58,7 @@ def crop_images_from_folder(image_folder, csv_folder, output_folder):
 
         # Check if the CSV file exists and is not empty
         if not os.path.exists(csv_path) or os.path.getsize(csv_path) == 0:
-            print(f"CSV does not exist or is empty: {csv_filename}")
+            #print(f"CSV does not exist or is empty: {csv_filename}")
             with Image.open(image_path) as img:
                 crops = random_crop_img(img)
                 for i, crop in enumerate(crops):
@@ -68,7 +68,7 @@ def crop_images_from_folder(image_folder, csv_folder, output_folder):
 
         with open(csv_path, "r") as f:
             if f.read().isspace():
-                print(f"CSV file contains only whitespace: {csv_filename}")
+                #print(f"CSV file contains only whitespace: {csv_filename}")
                 with Image.open(image_path) as img:
                     crops = random_crop_img(img)
                     for i, crop in enumerate(crops):

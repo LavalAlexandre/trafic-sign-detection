@@ -256,8 +256,8 @@ class Sign_Classifier():
 
 #%%train
 #
-train_dataset = TrafficSignDataset(data_dir='C:/Users/23158/Desktop/SY32PROJET/dataset2/train/cropped_images', transform=transform)
-val_dataset = TrafficSignDataset(data_dir='C:/Users/23158/Desktop/SY32PROJET/dataset2/val/cropped_images', transform=transform)
+train_dataset = TrafficSignDataset(data_dir='C:/Users/23158/Desktop/SY32PROJET/dataset/train/cropped_images', transform=transform)
+val_dataset = TrafficSignDataset(data_dir='C:/Users/23158/Desktop/SY32PROJET/dataset/val/cropped_images', transform=transform)
 
 clf = Sign_Classifier()
 clf.fit(train_dataset, val_dataset)
@@ -320,7 +320,7 @@ def select_region_and_predict(image_path, Sign_Classifier):
     cv2.destroyAllWindows()
 
     
-image_path = 'C:/Users/23158/Desktop/SY32PROJET/dataset2/val/images/0088.jpg'  #
+image_path = 'C:/Users/23158/Desktop/SY32PROJET/dataset/val/images/0088.jpg'  #
 select_region_and_predict(image_path,clf)
 #%%
 def sliding_window(image, min_window_size, max_window_size, step):
@@ -387,6 +387,6 @@ def non_max_suppression(detections, overlap_thresh=0):
 
     return [detections[i] for i in keep]
 
-image_path = 'C:/Users/23158/Desktop/SY32PROJET/dataset2/val/images/0088.jpg'  
+image_path = 'C:/Users/23158/Desktop/SY32PROJET/dataset/val/images/0088.jpg'
 detect_traffic_signs(image_path, clf)
 
