@@ -13,7 +13,7 @@ import os
 import selectivesearch
 
 
-
+#%%detection 
 """
 def pyramid(image, scale=1.5, min_size=(50, 50)):
     yield image
@@ -201,7 +201,7 @@ def detect_traffic_signs_without_piramid(image, model, step_size_ratio=0.2, min_
     
     print(detections)
     return detections
-
+#%%selective_search
 
 def selective_search(image):
     # 使用selectivesearch库进行选择搜索
@@ -215,7 +215,7 @@ def selective_search(image):
         if r['rect'] in candidates:
             continue
         # 排除太小的区域
-        if r['size'] < 10000:
+        if r['size'] < 2500:
             continue
         x, y, w, h = r['rect']
         # 排除扭曲的候选区域
@@ -224,14 +224,14 @@ def selective_search(image):
         candidates.add(r['rect'])
     
     # 遍历候选区域并绘制矩形框
-    for (x, y, w, h) in candidates:
-        cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+    #for (x, y, w, h) in candidates:
+        #cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
     
     # 显示结果图片
-    plt.figure()
-    plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-    plt.axis('off')
-    plt.show()
+    #plt.figure()
+    #plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    #plt.axis('off')
+    #plt.show()
     
     return candidates
 
@@ -664,7 +664,7 @@ for (x1, y1, x2, y2, label,max_probabilities) in picked_boxes:
     cv2.rectangle(output_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
     
     text = f"{label}: {max_probabilities:.2f}"
-    # 显示文本
+   
     cv2.putText(output_image, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
 plt.figure()
