@@ -187,7 +187,7 @@ class Sign_Classifier():
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = optim.Adam(self.net.parameters(), lr=0.001) #learning_rate = 0.001
     
-    def fit(self, train_dataset,val_dataset, n_epoch=10, batch_size=32): #batch_size = 32 num_epochs = 10
+    def fit(self, train_dataset,val_dataset, n_epoch=25, batch_size=32): #batch_size = 32 num_epochs = 10
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
         total_step = len(train_loader)
@@ -250,7 +250,7 @@ class Sign_Classifier():
           return self.net
           
 
-#model_path = 'C:/Users/23158/traffic_sign_cnn.pth' 
+model_path = 'C:/Users/23158/traffic_sign_cnn.pth' 
 #clf = Sign_Classifier()
 #clf.load_model(model_path)
 
@@ -320,9 +320,10 @@ def select_region_and_predict(image_path, Sign_Classifier):
     cv2.destroyAllWindows()
 
     
-image_path = 'C:/Users/23158/Desktop/SY32PROJET/dataset/val/images/0088.jpg'  #
+image_path = 'C:/Users/23158/Desktop/SY32PROJET/dataset2/val/images/0852.jpg'  #
 select_region_and_predict(image_path,clf)
 #%%
+"""
 def sliding_window(image, min_window_size, max_window_size, step):
     for window_size in range(max_window_size, min_window_size - 1, -step):
         for y in range(0, image.shape[0] - window_size + 1, step):
@@ -387,6 +388,190 @@ def non_max_suppression(detections, overlap_thresh=0):
 
     return [detections[i] for i in keep]
 
-image_path = 'C:/Users/23158/Desktop/SY32PROJET/dataset/val/images/0088.jpg'
-detect_traffic_signs(image_path, clf)
 
+
+"""
+
+
+###without piramid
+def sliding_window_without_piramid(image, step_size_ratio, min_window_size_ratio, max_window_size_ratio):
+    height, width = image.shape[:2]
+    print("imagesize:",width,height)
+    min_window_width = int(width * min_window_size_ratio)
+    max_window_width = int(width * max_window_size_ratio)
+    size_ratio=max_window_size_ratio-0.1
+    #scale_factor = 0.9
+    
+    window_width = int( max_window_width*size_ratio)
+    window_height = window_width
+    
+    
+    while window_width >= 150:  
+        print("windowsize:",window_width,window_height)
+        #step_size = 50
+        step_size = int(window_width * step_size_ratio)
+        print("step_size:",step_size)
+        for y in range(0, height - window_height, step_size):
+            for x in range(0, width - window_width, step_size):
+                yield (x, y, (window_width, window_height), image[y:y + window_height, x:x + window_width])
+        
+        size_ratio=size_ratio-0.1
+        window_width = int( max_window_width*size_ratio)
+        window_height = window_width
+        
+def sliding_window_without_piramid_feu(image, step_size_ratio, min_window_size_ratio, max_window_size_ratio):
+    height, width = image.shape[:2]
+    print("imagesize:",width,height)
+    min_window_height = int(height * min_window_size_ratio)
+    max_window_height = int(height * max_window_size_ratio)
+    size_ratio=max_window_size_ratio-0.1
+    #scale_factor = 0.9
+    
+    window_height = int(max_window_height*size_ratio)
+    window_width = int(window_height/2.2)
+    
+    
+    while window_height >= 200:  
+        print("windowsize:",window_width,window_height)
+        #step_size = 50
+        step_size = int(window_height * step_size_ratio)
+        print("step_size:",step_size,int(step_size/2.2))
+        for y in range(0, height - window_height, step_size):
+            for x in range(0, width - window_width, int(step_size/2)):
+                yield (x, y, (window_width, window_height), image[y:y + window_height, x:x + window_width])
+        
+        size_ratio=size_ratio-0.1
+        window_height =  int(max_window_height*size_ratio)
+        window_width = int(window_height/2.2)
+
+def detect_traffic_signs_without_piramid(image, model, step_size_ratio=0.2, min_window_size_ratio=0.1, max_window_size_ratio=1.0):
+    detections = []
+   
+    for (x, y, (win_width, win_height), window) in sliding_window_without_piramid(image, step_size_ratio,min_window_size_ratio,max_window_size_ratio):
+        if window.shape[0] != win_height or window.shape[1] != win_width:
+            continue
+        prediction,prediction_probabilities,confidence=model.predict(window)
+        #prediction = model.predict_window(window)
+        #prediction_probabilities = model.predict_proba_window(window)
+        #max_probabilities = np.max(prediction_probabilities, axis=1)
+        
+        if prediction != 'none' and prediction != 'frouge' and prediction != 'forange' and prediction != 'fvert' and confidence >=0.99:  # Assuming '1' indicates a traffic sign
+            x_orig = x
+            y_orig = y
+            w_orig = win_width
+            h_orig = win_height
+            prob = confidence
+            detections.append((x_orig, y_orig, x_orig + w_orig, y_orig + h_orig, prediction, prob))
+            
+    for (x, y, (win_width, win_height), window) in sliding_window_without_piramid_feu(image, step_size_ratio,min_window_size_ratio,max_window_size_ratio):
+        if window.shape[0] != win_height or window.shape[1] != win_width:
+            continue
+        prediction,prediction_probabilities,confidence=model.predict(window)
+        #prediction = model.predict_window(window)
+        #prediction_probabilities = model.predict_proba_window(window)
+        #max_probabilities = np.max(prediction_probabilities, axis=1)
+        
+        if (prediction == 'frouge' or prediction == 'forange' or prediction == 'fvert') and confidence >= 0.99:  # Assuming '1' indicates a traffic sign
+            x_orig = x
+            y_orig = y
+            w_orig = win_width
+            h_orig = win_height
+            prob = confidence
+            detections.append((x_orig, y_orig, x_orig + w_orig, y_orig + h_orig, prediction, prob))
+    
+    
+    print(detections)
+    return detections
+
+
+def non_max_suppression(boxes, overlap_thresh):
+    if len(boxes) == 0:
+        return []
+    boxes = np.array(boxes)
+    
+    x1 = boxes[:, 0].astype(int)
+    y1 = boxes[:, 1].astype(int)
+    x2 = boxes[:, 2].astype(int)
+    y2 = boxes[:, 3].astype(int)
+    probs = boxes[:, 5].astype(float)
+    
+    idxs = np.argsort(probs)[::-1]
+    
+    picked_boxes = []
+    
+    while len(idxs) > 0:
+        i = idxs[0]
+        picked_boxes.append(boxes[i])
+        xx1 = np.maximum(x1[i], x1[idxs[1:]])
+        yy1 = np.maximum(y1[i], y1[idxs[1:]])
+        xx2 = np.minimum(x2[i], x2[idxs[1:]])
+        yy2 = np.minimum(y2[i], y2[idxs[1:]])
+        
+        w = np.maximum(0, xx2 - xx1 + 1)
+        h = np.maximum(0, yy2 - yy1 + 1)
+        
+        overlap = (w * h) / ((x2[i] - x1[i] + 1) * (y2[i] - y1[i] + 1))
+        
+        idxs = np.delete(idxs, np.concatenate(([0], np.where(overlap > overlap_thresh)[0] + 1)))
+    
+    return np.array(picked_boxes)
+
+
+
+#%%
+image = cv2.imread('C:/Users/23158/Desktop/SY32PROJET/dataset2/val/images/0004.jpg')
+detections = detect_traffic_signs_without_piramid(image, clf)
+boxes = np.array(detections)
+picked_boxes = non_max_suppression(boxes, 0.01)
+#picked_boxes=boxes
+print(picked_boxes)
+for (x1, y1, x2, y2, label,max_probabilities) in picked_boxes:  
+    x1, y1, x2, y2 ,max_probabilities= int(x1), int(y1), int(x2), int(y2),float(max_probabilities)
+    cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    
+    text = f"{label}: {max_probabilities:.2f}"
+    # 显示文本
+    cv2.putText(image, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+    #output_image_path = os.path.join(output_folder, filename)
+    #cv2.imwrite(output_image_path, image)
+
+plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))  
+plt.title('Detections')  
+plt.axis('off')  
+plt.show()
+
+#%%
+import pandas as pd
+def detection_images_in_folder(folder_path, model, csv_path):
+    results = []
+    output_folder = os.path.join(os.getcwd(), 'output_images')
+    
+    # 如果输出文件夹不存在，则创建它
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+    
+    for filename in os.listdir(folder_path):
+        if filename.endswith(".jpg"):
+            image_path = os.path.join(folder_path, filename)
+            print(filename)
+            image = cv2.imread(image_path)
+            detections = detect_traffic_signs_without_piramid(image, model)
+            boxes = np.array(detections)
+            picked_boxes = non_max_suppression(boxes, 0.1)  
+
+            for (x1, y1, x2, y2, label, max_probabilities) in picked_boxes:
+                x1, y1, x2, y2, max_probabilities = int(x1), int(y1), int(x2), int(y2), float(max_probabilities)
+                results.append([filename, x1, y1, x2, y2, max_probabilities, label])
+                cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                text = f"{label}: {max_probabilities:.2f}"
+                # 显示文本
+                cv2.putText(image, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+            
+            # 保存处理后的图像
+            output_image_path = os.path.join(output_folder, filename)
+            cv2.imwrite(output_image_path, image)
+         
+    df = pd.DataFrame(results, columns=['Num img', 'Coin h-g x', 'Coin h-g y', 'Coin b-d x', 'Coin b-d y', 'Score', 'Classe'])
+    df.to_csv(csv_path, index=False)
+
+detection_images_in_folder('C:/Users/23158/Desktop/SY32PROJET/dataset2/val/images/', clf, 'detections.csv')
