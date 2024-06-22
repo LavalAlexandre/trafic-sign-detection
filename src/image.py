@@ -141,12 +141,14 @@ class img:
         return summed_brightness
 
     def preprocess(self):
+        self.data = []
         try:
             if self.window is None:
                 img = cv2.imread(self.path + self.name)
             else:
                 img = self.window
             img = cv2.resize(img, self.standard_size)
+
             #self.data.extend(self.compute_daist_feature(img))
             self.data.extend(self.compute_hog_feature(img))
             self.data.extend(self.compute_color_moments(img))
