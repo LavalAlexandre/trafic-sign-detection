@@ -110,13 +110,13 @@ def detect_traffic_signs(image, model, step_size_ratio=0.5, min_window_size_rati
                 prob = max_probabilities[0]
                 detections.append((x_orig, y_orig, x_orig + w_orig, y_orig + h_orig, prediction[0], prob))
     
-    print(detections)
+    #print(detections)
     return detections
 
 ###without piramid
 def sliding_window_without_piramid(image, step_size_ratio, min_window_size_ratio, max_window_size_ratio):
     height, width = image.shape[:2]
-    print("imagesize:",width,height)
+    #print("imagesize:",width,height)
     min_window_width = int(width * min_window_size_ratio)
     max_window_width = int(width * max_window_size_ratio)
     size_ratio=max_window_size_ratio-0.1
@@ -254,7 +254,7 @@ def detect_traffic_signs_with_selective_search(image, model):
         elif (prediction == 'frouge' or prediction == 'forange' or prediction == 'fvert') and max_probabilities[0] > 0.8:
             detections.append((x, y, x + w, y + h, prediction[0], prob))
 
-    print(detections)
+    #print(detections)
     return detections
 
 def non_max_suppression(boxes, overlap_thresh):
@@ -313,34 +313,49 @@ def detection_image(image_path, model,csv_path):
     df = pd.DataFrame(results, columns=['Num img', 'Coin h-g x', 'Coin h-g y', 'Coin b-d x', 'Coin b-d y', 'Score', 'Classe'])
     df.to_csv(csv_path, index=False)
 
+
+from multiprocessing import Pool, Manager
+from functools import partial
+
+
+def process_image(filename, folder_path, model, output_folder, result_list):
+    if filename.endswith(".jpg"):
+        image_path = os.path.join(folder_path, filename)
+        #print(filename)
+        image = cv2.imread(image_path)
+        detections = detect_traffic_signs_with_selective_search(image, model)
+        boxes = np.array(detections)
+        picked_boxes = non_max_suppression(boxes, 0.1)
+
+        for (x1, y1, x2, y2, label, max_probabilities) in picked_boxes:
+            x1, y1, x2, y2, max_probabilities = int(x1), int(y1), int(x2), int(y2), float(max_probabilities)
+            result_list.append([filename, x1, y1, x2, y2, max_probabilities, label])
+            cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            text = f"{label}: {max_probabilities:.2f}"
+            cv2.putText(image, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+
+        output_image_path = os.path.join(output_folder, filename)
+        cv2.imwrite(output_image_path, image)
+
+
 def detection_images_in_folder(folder_path, model, csv_path):
-    results = []
+    manager = Manager()
+    result_list = manager.list()
     output_folder = os.path.join(os.getcwd(), 'output_images')
-    
+
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
-        
-    for filename in tqdm(os.listdir(folder_path), desc="Detecting traffic signs"):
-        if filename.endswith(".jpg"):
-            image_path = os.path.join(folder_path, filename)
-            print(filename)
-            image = cv2.imread(image_path)
-            detections = detect_traffic_signs_with_selective_search(image, model)
-            boxes = np.array(detections)
-            picked_boxes = non_max_suppression(boxes, 0.1)  
 
-            for (x1, y1, x2, y2, label, max_probabilities) in picked_boxes:
-                x1, y1, x2, y2, max_probabilities = int(x1), int(y1), int(x2), int(y2), float(max_probabilities)
-                results.append([filename, x1, y1, x2, y2, max_probabilities, label])
-                cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                text = f"{label}: {max_probabilities:.2f}"
-                # 显示文本
-                cv2.putText(image, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)   
-          
-            output_image_path = os.path.join(output_folder, filename)
-            cv2.imwrite(output_image_path, image)
-         
-    df = pd.DataFrame(results, columns=['Num img', 'Coin h-g x', 'Coin h-g y', 'Coin b-d x', 'Coin b-d y', 'Score', 'Classe'])
+    filenames = [f for f in os.listdir(folder_path) if f.endswith(".jpg")]
+
+    with Pool(processes=os.cpu_count()) as pool:
+        func = partial(process_image, folder_path=folder_path, model=model, output_folder=output_folder,
+                       result_list=result_list)
+        list(tqdm(pool.imap(func, filenames), total=len(filenames), desc="Detecting traffic signs"))
+
+    results = list(result_list)
+    df = pd.DataFrame(results,
+                      columns=['Num img', 'Coin h-g x', 'Coin h-g y', 'Coin b-d x', 'Coin b-d y', 'Score', 'Classe'])
     df.to_csv(csv_path, index=False)
 
 
@@ -403,13 +418,3 @@ def select_region_and_predict(image_path, model):
             break
 
     cv2.destroyAllWindows()
-
-
-
-
-
-
-
-
-
-
