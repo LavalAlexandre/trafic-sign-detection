@@ -257,21 +257,23 @@ def detect_traffic_signs_with_selective_search(image, model):
     #print(detections)
     return detections
 
+
 def non_max_suppression(boxes, overlap_thresh):
     if len(boxes) == 0:
         return []
+
     boxes = np.array(boxes)
-    
+
     x1 = boxes[:, 0].astype(int)
     y1 = boxes[:, 1].astype(int)
     x2 = boxes[:, 2].astype(int)
     y2 = boxes[:, 3].astype(int)
     probs = boxes[:, 5].astype(float)
-    
+
     idxs = np.argsort(probs)[::-1]
-    
+
     picked_boxes = []
-    
+
     while len(idxs) > 0:
         i = idxs[0]
         picked_boxes.append(boxes[i])
@@ -279,18 +281,17 @@ def non_max_suppression(boxes, overlap_thresh):
         yy1 = np.maximum(y1[i], y1[idxs[1:]])
         xx2 = np.minimum(x2[i], x2[idxs[1:]])
         yy2 = np.minimum(y2[i], y2[idxs[1:]])
-        
+
         w = np.maximum(0, xx2 - xx1 + 1)
         h = np.maximum(0, yy2 - yy1 + 1)
-        
-        overlap = (w * h) / ((x2[i] - x1[i] + 1) * (y2[i] - y1[i] + 1))
-        
-        idxs = np.delete(idxs, np.concatenate(([0], np.where(overlap > overlap_thresh)[0] + 1)))
-    
+
+        overlap = (w * h) / ((x2[idxs[1:]] - x1[idxs[1:]] + 1) * (y2[idxs[1:]] - y1[idxs[1:]] + 1))
+
+        inside = (x1[idxs[1:]] >= x1[i]) & (y1[idxs[1:]] >= y1[i]) & (x2[idxs[1:]] <= x2[i]) & (y2[idxs[1:]] <= y2[i])
+
+        idxs = np.delete(idxs, np.concatenate(([0], np.where((overlap > overlap_thresh) | inside)[0] + 1)))
+
     return np.array(picked_boxes)
-
-
-
 
 
 #%% detection all
