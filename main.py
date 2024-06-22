@@ -6,12 +6,12 @@ from src.crop import crop_images_from_folder
 if __name__ == "__main__":
     # data_augment()
 
-    image_folder = "dataset2/train/images/"
-    label_folder = "dataset2/train/labels/"
-    target_image_folder = "dataset2/train/images_aug/"
-    target_label_folder = "dataset2/train/labels_aug/"
-    val_path = "dataset2/val/images/"
-    val_label_path = "dataset2/val/labels/"
+    image_folder = "dataset/train/images/"
+    label_folder = "dataset/train/labels/"
+    target_image_folder = "dataset/train/images_aug/"
+    target_label_folder = "dataset/train/labels_aug/"
+    val_path = "dataset/val/images/"
+    val_label_path = "dataset/val/labels/"
 
     # """
     processor = ImageBatchProcessor(
@@ -21,16 +21,18 @@ if __name__ == "__main__":
     # """
     # """
     crop_images_from_folder(
-        image_folder, label_folder, "dataset2/train/cropped_images/"
+        image_folder, label_folder, "dataset/train/cropped_images/"
     )
     crop_images_from_folder(
-        target_image_folder, target_label_folder, "dataset2/train/aug_cropped_images/"
+        target_image_folder, target_label_folder, "dataset/train/aug_cropped_images/"
     )
-    crop_images_from_folder(val_path, val_label_path, "dataset2/val/cropped_images/")
+    crop_images_from_folder(val_path, val_label_path, "dataset/val/cropped_images/")
     # """
-    train_path = "dataset2/train/cropped_images/"
-    val_path = "dataset2/val/cropped_images/"
-    aug_train_path = "dataset2/train/aug_cropped_images/"
+    train_path = "dataset/train/cropped_images/"
+    val_path = "dataset/val/cropped_images/"
+    aug_train_path = "dataset/train/aug_cropped_images/"
+
+
 
     standard_size = (32, 32)
 

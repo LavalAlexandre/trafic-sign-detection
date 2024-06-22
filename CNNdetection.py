@@ -256,8 +256,8 @@ model_path = 'C:/Users/23158/traffic_sign_cnn.pth'
 
 #%%train
 #
-train_dataset = TrafficSignDataset(data_dir='C:/Users/23158/Desktop/SY32PROJET/dataset2/train/cropped_images', transform=transform)
-val_dataset = TrafficSignDataset(data_dir='C:/Users/23158/Desktop/SY32PROJET/dataset2/val/cropped_images', transform=transform)
+train_dataset = TrafficSignDataset(data_dir='C:/Users/23158/Desktop/SY32PROJET/dataset/train/cropped_images', transform=transform)
+val_dataset = TrafficSignDataset(data_dir='C:/Users/23158/Desktop/SY32PROJET/dataset/val/cropped_images', transform=transform)
 
 clf = Sign_Classifier()
 clf.fit(train_dataset, val_dataset)
@@ -388,7 +388,10 @@ def non_max_suppression(detections, overlap_thresh=0):
 
     return [detections[i] for i in keep]
 
+
+
 """
+
 
 ###without piramid
 def sliding_window_without_piramid(image, step_size_ratio, min_window_size_ratio, max_window_size_ratio):
