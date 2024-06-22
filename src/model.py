@@ -24,9 +24,8 @@ class model:
         self.name = None
         self.n_jobs = n_jobs
 
-    def save(self, path):
-        date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        model_path = path + "/model_" + date + ".pkl"
+    def save(self, path, name="model"):
+        model_path = path + f"/{name}_" + ".pkl"
         joblib.dump(self.classifier, model_path)
 
     def predict_window(self, window):
