@@ -55,6 +55,10 @@ def crop_images_from_folder(image_folder, csv_folder, output_folder):
 
         # Construct the full image file path
         image_path = os.path.join(image_folder, image_filename)
+        if not os.path.isfile(image_path):
+            continue
+
+
 
         # Check if the CSV file exists and is not empty
         if not os.path.exists(csv_path) or os.path.getsize(csv_path) == 0:
