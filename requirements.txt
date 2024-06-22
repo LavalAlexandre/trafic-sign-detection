@@ -15,3 +15,4 @@ matplotlib
 joblib
 pytorch
 torchvision
+selectivesearch
