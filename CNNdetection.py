@@ -21,6 +21,7 @@ import cv2
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
+import selectivesearch
 
 # dataset
 transform = transforms.Compose([
@@ -322,7 +323,7 @@ def select_region_and_predict(image_path, Sign_Classifier):
     
 image_path = 'C:/Users/23158/Desktop/SY32PROJET/dataset2/val/images/0852.jpg'  #
 select_region_and_predict(image_path,clf)
-#%%
+#%%selective_search
 """
 def sliding_window(image, min_window_size, max_window_size, step):
     for window_size in range(max_window_size, min_window_size - 1, -step):
@@ -484,6 +485,59 @@ def detect_traffic_signs_without_piramid(image, model, step_size_ratio=0.2, min_
     return detections
 
 
+####
+def selective_search(image):
+    # 使用selectivesearch库进行选择搜索
+    image_int = (image * 255).astype(np.uint8)
+    img_lbl, regions = selectivesearch.selective_search(
+        image_int, scale=250, sigma=0.9, min_size=100)
+    
+    candidates = set()
+    for r in regions:
+        # 排除重复的候选区域
+        if r['rect'] in candidates:
+            continue
+        # 排除太小的区域
+        if r['size'] < 5000:
+            continue
+        x, y, w, h = r['rect']
+        # 排除扭曲的候选区域
+        if w == 0 or h == 0 or w / h > 2 or h / w > 3:
+            continue
+        candidates.add(r['rect'])
+    
+    # 遍历候选区域并绘制矩形框
+    #for (x, y, w, h) in candidates:
+        #cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+    
+    # 显示结果图片
+    #plt.figure()
+    #plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    #plt.axis('off')
+    #plt.show()
+    
+    return candidates
+
+def detect_traffic_signs_with_selective_search(image, model):
+    detections = []
+    candidates = selective_search(image)
+    
+    for (x, y, w, h) in candidates:
+        window = image[y:y + h, x:x + w]
+        if window.shape[0] != h or window.shape[1] != w:
+            continue
+        prediction,prediction_probabilities,confidence=model.predict(window)
+        
+        
+        prob = confidence
+        if prediction != 'none' and prediction != 'frouge' and prediction != 'forange' and prediction != 'fvert' and prob > 0.98:
+            detections.append((x, y, x + w, y + h, prediction, prob))
+        elif (prediction == 'frouge' or prediction == 'forange' or prediction == 'fvert') and prob > 0.96:
+            detections.append((x, y, x + w, y + h, prediction, prob))
+    
+    print(detections)
+    return detections
+
 def non_max_suppression(boxes, overlap_thresh):
     if len(boxes) == 0:
         return []
@@ -518,7 +572,7 @@ def non_max_suppression(boxes, overlap_thresh):
 
 
 
-#%%
+#%%detection one images
 image = cv2.imread('C:/Users/23158/Desktop/SY32PROJET/dataset2/val/images/0004.jpg')
 detections = detect_traffic_signs_without_piramid(image, clf)
 boxes = np.array(detections)
@@ -540,13 +594,13 @@ plt.title('Detections')
 plt.axis('off')  
 plt.show()
 
-#%%
+#%%detection_images_in_folder
 import pandas as pd
 def detection_images_in_folder(folder_path, model, csv_path):
     results = []
     output_folder = os.path.join(os.getcwd(), 'output_images')
     
-    # 如果输出文件夹不存在，则创建它
+   
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
     
@@ -555,7 +609,7 @@ def detection_images_in_folder(folder_path, model, csv_path):
             image_path = os.path.join(folder_path, filename)
             print(filename)
             image = cv2.imread(image_path)
-            detections = detect_traffic_signs_without_piramid(image, model)
+            detections = detect_traffic_signs_with_selective_search(image, model)
             boxes = np.array(detections)
             picked_boxes = non_max_suppression(boxes, 0.1)  
 
@@ -564,10 +618,10 @@ def detection_images_in_folder(folder_path, model, csv_path):
                 results.append([filename, x1, y1, x2, y2, max_probabilities, label])
                 cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 text = f"{label}: {max_probabilities:.2f}"
-                # 显示文本
+               
                 cv2.putText(image, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
             
-            # 保存处理后的图像
+            
             output_image_path = os.path.join(output_folder, filename)
             cv2.imwrite(output_image_path, image)
          
