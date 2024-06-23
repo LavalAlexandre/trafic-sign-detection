@@ -22,7 +22,7 @@ import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
 import selectivesearch
-
+from detection import build_detection_validation
 # dataset
 transform = transforms.Compose([
     transforms.Resize((64, 64)),
@@ -60,7 +60,7 @@ class TrafficSignDataset(Dataset):
 
 
 label_to_idx = {'danger': 0, 'interdiction': 1, 'ceder': 2, 'obligation': 3, 'frouge': 4, 'fvert': 5, 'forange': 6, 'stop': 7,'none': 8}
-classes = ['danger', 'interdiction', 'cerder', 'obligation', 'frouge', 'fvert', 'forange', 'stop','none']
+classes = ['danger', 'interdiction', 'ceder', 'obligation', 'frouge', 'fvert', 'forange', 'stop','none']
 #CNN
 class CNN(nn.Module):
     def __init__(self, num_classes=9):  
@@ -188,7 +188,7 @@ class Sign_Classifier():
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = optim.Adam(self.net.parameters(), lr=0.001) #learning_rate = 0.001
     
-    def fit(self, train_dataset,val_dataset, n_epoch=25, batch_size=32): #batch_size = 32 num_epochs = 10
+    def fit(self, train_dataset,val_dataset, n_epoch=20, batch_size=32): #batch_size = 32 num_epochs = 10
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
         total_step = len(train_loader)
@@ -251,26 +251,30 @@ class Sign_Classifier():
           return self.net
           
 
-model_path = 'C:/Users/23158/traffic_sign_cnn.pth' 
+#model_path = 'C:/Users/23158/traffic_sign_cnn.pth' 
 #clf = Sign_Classifier()
 #clf.load_model(model_path)
 
+
 #%%train
-#
+"""
 train_dataset = TrafficSignDataset(data_dir='C:/Users/23158/Desktop/SY32PROJET/dataset2/train/cropped_images', transform=transform)
 val_dataset = TrafficSignDataset(data_dir='C:/Users/23158/Desktop/SY32PROJET/dataset2/val/cropped_images', transform=transform)
 
 clf = Sign_Classifier()
 clf.fit(train_dataset, val_dataset)
 
-
+"""
     
 
 
 
 #%%load
+"""
+model_path = 'traffic_sign_cnn.pth' 
 clf = Sign_Classifier()
 clf.load_model(model_path)
+"""
 #%%select_region_and_predict
 def select_region_and_predict(image_path, Sign_Classifier):
     global ref_point, cropping, image, clone
@@ -321,8 +325,8 @@ def select_region_and_predict(image_path, Sign_Classifier):
     cv2.destroyAllWindows()
 
     
-image_path = 'C:/Users/23158/Desktop/SY32PROJET/dataset2/val/images/0852.jpg'  #
-select_region_and_predict(image_path,clf)
+#image_path = 'C:/Users/23158/Desktop/SY32PROJET/dataset2/train/images/0833.jpg'  #
+#select_region_and_predict(image_path,clf)
 #%%selective_search
 """
 def sliding_window(image, min_window_size, max_window_size, step):
@@ -487,32 +491,32 @@ def selective_search(image):
     # 使用selectivesearch库进行选择搜索
     image_int = (image * 255).astype(np.uint8)
     img_lbl, regions = selectivesearch.selective_search(
-        image_int, scale=250, sigma=0.9, min_size=100)
+        image_int, scale=500, sigma=0.7, min_size=100)
     
     candidates = set()
     for r in regions:
-        # 排除重复的候选区域
+       
         if r['rect'] in candidates:
             continue
-        # 排除太小的区域
-        if r['size'] < 5000:
+     
+        if r['size'] < 1000:
             continue
         x, y, w, h = r['rect']
-        # 排除扭曲的候选区域
-        if w == 0 or h == 0 or w / h > 2 or h / w > 3:
+       
+        if w == 0 or h == 0 or w / h > 1.3 or h / w > 3:
             continue
         candidates.add(r['rect'])
-    
+    """
     # 遍历候选区域并绘制矩形框
-    #for (x, y, w, h) in candidates:
-        #cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+    for (x, y, w, h) in candidates:
+        cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
     
     # 显示结果图片
-    #plt.figure()
-    #plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-    #plt.axis('off')
-    #plt.show()
-    
+    plt.figure()
+    plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    plt.axis('off')
+    plt.show()
+    """
     return candidates
 
 def detect_traffic_signs_with_selective_search(image, model):
@@ -527,9 +531,9 @@ def detect_traffic_signs_with_selective_search(image, model):
         
         
         prob = confidence
-        if prediction != 'none' and prediction != 'frouge' and prediction != 'forange' and prediction != 'fvert' and prob > 0.98:
+        if prediction != 'none' and prediction != 'frouge' and prediction != 'forange' and prediction != 'fvert' and prob > 0.9:
             detections.append((x, y, x + w, y + h, prediction, prob))
-        elif (prediction == 'frouge' or prediction == 'forange' or prediction == 'fvert') and prob > 0.96:
+        elif (prediction == 'frouge' or prediction == 'forange' or prediction == 'fvert') and prob > 0.9:
             detections.append((x, y, x + w, y + h, prediction, prob))
     
     print(detections)
@@ -563,17 +567,23 @@ def non_max_suppression(boxes, overlap_thresh):
         
         overlap = (w * h) / ((x2[i] - x1[i] + 1) * (y2[i] - y1[i] + 1))
         
-        idxs = np.delete(idxs, np.concatenate(([0], np.where(overlap > overlap_thresh)[0] + 1)))
+        inside = (x1[idxs[1:]] >= x1[i]) & (y1[idxs[1:]] >= y1[i]) & (x2[idxs[1:]] <= x2[i]) & (y2[idxs[1:]] <= y2[i])
+       
+      
+        idxs = np.delete(idxs, np.concatenate(([0], np.where((overlap > overlap_thresh) | inside)[0] + 1)))
+        
+        
     
     return np.array(picked_boxes)
 
 
 
 #%%detection one images
-image = cv2.imread('C:/Users/23158/Desktop/SY32PROJET/dataset2/val/images/0004.jpg')
-detections = detect_traffic_signs_without_piramid(image, clf)
+"""
+image = cv2.imread('C:/Users/23158/Desktop/SY32PROJET/dataset2/train/images/0833.jpg')
+detections = detect_traffic_signs_with_selective_search(image, clf)
 boxes = np.array(detections)
-picked_boxes = non_max_suppression(boxes, 0.01)
+picked_boxes = non_max_suppression(boxes, 0.4)
 #picked_boxes=boxes
 print(picked_boxes)
 for (x1, y1, x2, y2, label,max_probabilities) in picked_boxes:  
@@ -590,7 +600,7 @@ plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 plt.title('Detections')  
 plt.axis('off')  
 plt.show()
-
+"""
 #%%detection_images_in_folder
 import pandas as pd
 def detection_images_in_folder(folder_path, model, csv_path):
@@ -620,9 +630,82 @@ def detection_images_in_folder(folder_path, model, csv_path):
             
             
             output_image_path = os.path.join(output_folder, filename)
+            plt.figure()
+            plt.imshow(image)
+            
             cv2.imwrite(output_image_path, image)
          
     df = pd.DataFrame(results, columns=['Num img', 'Coin h-g x', 'Coin h-g y', 'Coin b-d x', 'Coin b-d y', 'Score', 'Classe'])
     df.to_csv(csv_path, index=False)
 
-detection_images_in_folder('C:/Users/23158/Desktop/SY32PROJET/dataset2/val/images/', clf, 'detections.csv')
+#detection_images_in_folder('C:/Users/23158/Desktop/SY32PROJET/dataset2/test', clf, 'detections.csv')
+
+#%%
+"""
+from detection import build_detection_validation
+label_path = "C:/Users/23158/Desktop/SY32PROJET/dataset2/train/labels"
+build_detection_validation(label_path)
+validations = pd.read_csv('validations.csv', header=None)
+detections = pd.read_csv('detections.csv', header=None)
+negative_samples_dir = "C:/Users/23158/Desktop/SY32PROJET/dataset2/train/cropped_images"
+image_folder_path = "C:/Users/23158/Desktop/SY32PROJET/dataset2/train/images"
+
+def iou(box1, box2):
+    # Determine the coordinates of the intersection rectangle
+    
+    x_left = max(int(box1[0]), int(box2[0]))
+    y_top = max(int(box1[1]), int(box2[1]))
+    x_right = min(int(box1[2]), int(box2[2]))
+    y_bottom = min(int(box1[3]), int(box2[3]))
+
+    if x_right < x_left or y_bottom < y_top:
+        return 0.0
+
+    # The area of intersection
+    intersection_area = (x_right - x_left) * (y_bottom - y_top)
+
+    # The area of both the prediction and ground-truth rectangles
+    box1_area = (int(box1[2]) - int(box1[0])) * (int(box1[3]) - int(box1[1]))
+    box2_area = (int(box2[2]) - int(box2[0])) * (int(box2[3]) - int(box2[1]))
+
+    # The area of the union
+    union_area = box1_area + box2_area - intersection_area
+
+    # Compute the IoU
+    iou = intersection_area / union_area
+    return iou
+
+def get_negative_prediction(detections, validations, image_folder_path, negative_samples_dir):
+    if image_folder_path== "dataset/val/images" or image_folder_path== "dataset/test":
+        print("Cannot generate negative samples for validation or test set")
+        return
+    if not os.path.exists(negative_samples_dir):
+        os.makedirs(negative_samples_dir)
+
+    negative_predictions = []
+    for _, detection_row in detections.iterrows():
+        image_id_d, x_min_d, y_min_d, x_max_d, y_max_d, score_d, label_d = detection_row
+        no_intersection = True
+
+        for _, validation_row in validations.iterrows():
+            image_id_v, x_min_v, y_min_v, x_max_v, y_max_v, label_v = validation_row
+
+            if image_id_v == image_id_d:
+                iou_value = iou((x_min_v, y_min_v, x_max_v, y_max_v), (x_min_d, y_min_d, x_max_d, y_max_d))
+                if iou_value >= 0.3 or label_v == label_d:
+                    no_intersection = False
+                    break
+
+        if no_intersection and label_d != 'none':
+            negative_predictions.append((image_id_d, x_min_d, y_min_d, x_max_d, y_max_d, label_d))
+
+    for i, (image_id, x_min, y_min, x_max, y_max, label) in enumerate(negative_predictions):
+        print(image_id)
+        image_path = os.path.join(image_folder_path, f"{image_id}")
+        image = Image.open(image_path)
+        cropped_image = image.crop((x_min, y_min, x_max, y_max))
+        save_path = os.path.join(negative_samples_dir, f"negative_sample_none_{i}.png")
+        cropped_image.save(save_path)
+
+get_negative_prediction(detections, validations,image_folder_path, negative_samples_dir)
+"""
