@@ -13,8 +13,9 @@ import os
 from tqdm import tqdm
 import selectivesearch
 
+DETECTION_PROB_THRESHOLD = 0.8
 
-#%%detection
+# %%detection
 """
 def pyramid(image, scale=1.5, min_size=(50, 50)):
     yield image
@@ -49,7 +50,7 @@ def detect_traffic_signs(image, model, win_sizes=[(50,50),(200,200),(400,400)], 
             #print(prediction_probabilities)
             max_probabilities = np.max(prediction_probabilities, axis=1)            
             #print(prediction)          
-            if prediction!='none' and max_probabilities > 0.9 :  # Assuming '1' indicates a traffic sign
+            if prediction!='none' and max_probabilities > DETECTION_PROB_THRESHOLD :  # Assuming '1' indicates a traffic sign
             
                 
                 x_orig = int(x * (image.shape[1] / resized.shape[1]))
@@ -64,6 +65,8 @@ def detect_traffic_signs(image, model, win_sizes=[(50,50),(200,200),(400,400)], 
     
     return detections
 """
+
+
 def pyramid(image, scale=1.1, min_size_ratio=0.1):
     yield image
     min_height = int(image.shape[0] * min_size_ratio)
@@ -75,134 +78,144 @@ def pyramid(image, scale=1.1, min_size_ratio=0.1):
             break
         yield image
 
-def sliding_window(image, step_size_ratio,window_width):
+
+def sliding_window(image, step_size_ratio, window_width):
     height, width = image.shape[:2]
-    
-    #print("imagesize:",height,width)
-    window_width = window_width 
+
+    # print("imagesize:",height,width)
+    window_width = window_width
     window_height = window_width
     step_size = 50
-    #print("windowsize:",window_width,window_height)
+    # print("windowsize:",window_width,window_height)
     for y in range(0, height - window_height, step_size):
         for x in range(0, width - window_width, step_size):
             yield (x, y, (window_width, window_height), image[y:y + window_height, x:x + window_width])
-        
-        
 
-        
 
-def detect_traffic_signs(image, model, step_size_ratio=0.5, min_window_size_ratio=0.1, max_window_size_ratio=0.25, pyramid_scale=1.1):
+def detect_traffic_signs(image, model, step_size_ratio=0.5, min_window_size_ratio=0.1, max_window_size_ratio=0.25,
+                         pyramid_scale=1.1):
     detections = []
-    for resized in pyramid(image, scale=pyramid_scale, min_size_ratio=0.05):  
-        for (x, y, (win_width, win_height), window) in sliding_window(resized, step_size_ratio,int(image.shape[1] * 0.1)):
+    for resized in pyramid(image, scale=pyramid_scale, min_size_ratio=0.05):
+        for (x, y, (win_width, win_height), window) in sliding_window(resized, step_size_ratio,
+                                                                      int(image.shape[1] * 0.1)):
             if window.shape[0] != win_height or window.shape[1] != win_width:
                 continue
 
             prediction = model.predict_window(window)
             prediction_probabilities = model.predict_proba_window(window)
             max_probabilities = np.max(prediction_probabilities, axis=1)
-            
-            if prediction != 'none' and max_probabilities[0] > 0.9:  # Assuming '1' indicates a traffic sign
+
+            if prediction != 'none' and max_probabilities[
+                0] > DETECTION_PROB_THRESHOLD:  # Assuming '1' indicates a traffic sign
                 x_orig = int(x * (image.shape[1] / resized.shape[1]))
                 y_orig = int(y * (image.shape[0] / resized.shape[0]))
                 w_orig = int(win_width * (image.shape[1] / resized.shape[1]))
                 h_orig = int(win_height * (image.shape[0] / resized.shape[0]))
                 prob = max_probabilities[0]
                 detections.append((x_orig, y_orig, x_orig + w_orig, y_orig + h_orig, prediction[0], prob))
-    
-    #print(detections)
+
+    # print(detections)
     return detections
+
 
 ###without piramid
 def sliding_window_without_piramid(image, step_size_ratio, min_window_size_ratio, max_window_size_ratio):
     height, width = image.shape[:2]
-    #print("imagesize:",width,height)
+    # print("imagesize:",width,height)
     min_window_width = int(width * min_window_size_ratio)
     max_window_width = int(width * max_window_size_ratio)
-    size_ratio=max_window_size_ratio-0.1
-    #scale_factor = 0.9
-    
-    window_width = int( max_window_width*size_ratio)
+    size_ratio = max_window_size_ratio - 0.1
+    # scale_factor = 0.9
+
+    window_width = int(max_window_width * size_ratio)
     window_height = window_width
-    
-    
-    while window_width >= 150:  
-        print("windowsize:",window_width,window_height)
-        #step_size = 50
+
+    while window_width >= 150:
+        print("windowsize:", window_width, window_height)
+        # step_size = 50
         step_size = int(window_width * step_size_ratio)
-        print("step_size:",step_size)
+        print("step_size:", step_size)
         for y in range(0, height - window_height, step_size):
             for x in range(0, width - window_width, step_size):
                 yield (x, y, (window_width, window_height), image[y:y + window_height, x:x + window_width])
-        
-        size_ratio=size_ratio-0.1
-        window_width = int( max_window_width*size_ratio)
+
+        size_ratio = size_ratio - 0.1
+        window_width = int(max_window_width * size_ratio)
         window_height = window_width
-        
+
+
 def sliding_window_without_piramid_feu(image, step_size_ratio, min_window_size_ratio, max_window_size_ratio):
     height, width = image.shape[:2]
-    print("imagesize:",width,height)
+    print("imagesize:", width, height)
     min_window_height = int(height * min_window_size_ratio)
     max_window_height = int(height * max_window_size_ratio)
-    size_ratio=max_window_size_ratio-0.1
-    #scale_factor = 0.9
-    
-    window_height = int(max_window_height*size_ratio)
-    window_width = int(window_height/2.2)
-    
-    
-    while window_height >= 200:  
-        print("windowsize:",window_width,window_height)
-        #step_size = 50
+    size_ratio = max_window_size_ratio - 0.1
+    # scale_factor = 0.9
+
+    window_height = int(max_window_height * size_ratio)
+    window_width = int(window_height / 2.2)
+
+    while window_height >= 200:
+        print("windowsize:", window_width, window_height)
+        # step_size = 50
         step_size = int(window_height * step_size_ratio)
-        print("step_size:",step_size,int(step_size/2.2))
+        print("step_size:", step_size, int(step_size / 2.2))
         for y in range(0, height - window_height, step_size):
-            for x in range(0, width - window_width, int(step_size/2)):
+            for x in range(0, width - window_width, int(step_size / 2)):
                 yield (x, y, (window_width, window_height), image[y:y + window_height, x:x + window_width])
-        
-        size_ratio=size_ratio-0.1
-        window_height =  int(max_window_height*size_ratio)
-        window_width = int(window_height/2.2)
 
-def detect_traffic_signs_without_piramid(image, model, step_size_ratio=0.2, min_window_size_ratio=0.1, max_window_size_ratio=1.0):
+        size_ratio = size_ratio - 0.1
+        window_height = int(max_window_height * size_ratio)
+        window_width = int(window_height / 2.2)
+
+
+def detect_traffic_signs_without_piramid(image, model, step_size_ratio=0.2, min_window_size_ratio=0.1,
+                                         max_window_size_ratio=1.0):
     detections = []
-   
-    for (x, y, (win_width, win_height), window) in sliding_window_without_piramid(image, step_size_ratio,min_window_size_ratio,max_window_size_ratio):
+
+    for (x, y, (win_width, win_height), window) in sliding_window_without_piramid(image, step_size_ratio,
+                                                                                  min_window_size_ratio,
+                                                                                  max_window_size_ratio):
         if window.shape[0] != win_height or window.shape[1] != win_width:
             continue
 
         prediction = model.predict_window(window)
         prediction_probabilities = model.predict_proba_window(window)
         max_probabilities = np.max(prediction_probabilities, axis=1)
-        
-        if prediction != 'none' and prediction != 'frouge' and prediction != 'forange' and prediction != 'fvert' and max_probabilities[0] > 0.9:  # Assuming '1' indicates a traffic sign
+
+        if prediction != 'none' and prediction != 'frouge' and prediction != 'forange' and prediction != 'fvert' and \
+                max_probabilities[0] > DETECTION_PROB_THRESHOLD:  # Assuming '1' indicates a traffic sign
             x_orig = x
             y_orig = y
             w_orig = win_width
             h_orig = win_height
             prob = max_probabilities[0]
             detections.append((x_orig, y_orig, x_orig + w_orig, y_orig + h_orig, prediction[0], prob))
-            
-    for (x, y, (win_width, win_height), window) in sliding_window_without_piramid_feu(image, step_size_ratio,min_window_size_ratio,max_window_size_ratio):
+
+    for (x, y, (win_width, win_height), window) in sliding_window_without_piramid_feu(image, step_size_ratio,
+                                                                                      min_window_size_ratio,
+                                                                                      max_window_size_ratio):
         if window.shape[0] != win_height or window.shape[1] != win_width:
             continue
 
         prediction = model.predict_window(window)
         prediction_probabilities = model.predict_proba_window(window)
         max_probabilities = np.max(prediction_probabilities, axis=1)
-        
-        if (prediction == 'frouge' or prediction == 'forange' or prediction == 'fvert') and max_probabilities[0] > 0.9:  # Assuming '1' indicates a traffic sign
+
+        if (prediction == 'frouge' or prediction == 'forange' or prediction == 'fvert') and max_probabilities[
+            0] > DETECTION_PROB_THRESHOLD:  # Assuming '1' indicates a traffic sign
             x_orig = x
             y_orig = y
             w_orig = win_width
             h_orig = win_height
             prob = max_probabilities[0]
             detections.append((x_orig, y_orig, x_orig + w_orig, y_orig + h_orig, prediction[0], prob))
-    
-    
+
     print(detections)
     return detections
-#%%selective_search
+
+
+# %%selective_search
 
 def selective_search(image):
     # 使用selectivesearch库进行选择搜索
@@ -225,16 +238,17 @@ def selective_search(image):
         candidates.add(r['rect'])
 
     # 遍历候选区域并绘制矩形框
-    #for (x, y, w, h) in candidates:
-        #cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+    # for (x, y, w, h) in candidates:
+    # cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
     # 显示结果图片
-    #plt.figure()
-    #plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-    #plt.axis('off')
-    #plt.show()
+    # plt.figure()
+    # plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    # plt.axis('off')
+    # plt.show()
 
     return candidates
+
 
 def detect_traffic_signs_with_selective_search(image, model):
     detections = []
@@ -249,12 +263,14 @@ def detect_traffic_signs_with_selective_search(image, model):
         prediction_probabilities = model.predict_proba_window(window)
         max_probabilities = np.max(prediction_probabilities, axis=1)
         prob = max_probabilities[0]
-        if prediction != 'none' and prediction != 'frouge' and prediction != 'forange' and prediction != 'fvert' and max_probabilities[0] > 0.8:
+        if prediction != 'none' and prediction != 'frouge' and prediction != 'forange' and prediction != 'fvert' and \
+                max_probabilities[0] > 0.8:
             detections.append((x, y, x + w, y + h, prediction[0], prob))
-        elif (prediction == 'frouge' or prediction == 'forange' or prediction == 'fvert') and max_probabilities[0] > 0.8:
+        elif (prediction == 'frouge' or prediction == 'forange' or prediction == 'fvert') and max_probabilities[
+            0] > 0.8:
             detections.append((x, y, x + w, y + h, prediction[0], prob))
 
-    #print(detections)
+    # print(detections)
     return detections
 
 
@@ -294,24 +310,25 @@ def non_max_suppression(boxes, overlap_thresh):
     return np.array(picked_boxes)
 
 
-#%% detection all
-def detection_image(image_path, model,csv_path):
+# %% detection all
+def detection_image(image_path, model, csv_path):
     image = cv2.imread(image_path)
     detections = detect_traffic_signs_without_piramid(image, model)
     boxes = np.array(detections)
-    picked_boxes = non_max_suppression(boxes, 0.1)  
-    
+    picked_boxes = non_max_suppression(boxes, 0.1)
+
     results = []
     for (x1, y1, x2, y2, label, max_probabilities) in picked_boxes:
-        x1, y1, x2, y2 ,max_probabilities= int(x1), int(y1), int(x2), int(y2),float(max_probabilities)
+        x1, y1, x2, y2, max_probabilities = int(x1), int(y1), int(x2), int(y2), float(max_probabilities)
         cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-  
+
         text = f"{label}: {max_probabilities:.2f}"
         # 显示文本
-        cv2.putText(image, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)        
+        cv2.putText(image, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
         results.append([image_path, x1, y1, x2, y2, max_probabilities, label])
-    
-    df = pd.DataFrame(results, columns=['Num img', 'Coin h-g x', 'Coin h-g y', 'Coin b-d x', 'Coin b-d y', 'Score', 'Classe'])
+
+    df = pd.DataFrame(results,
+                      columns=['Num img', 'Coin h-g x', 'Coin h-g y', 'Coin b-d x', 'Coin b-d y', 'Score', 'Classe'])
     df.to_csv(csv_path, index=False)
 
 
@@ -322,7 +339,7 @@ from functools import partial
 def process_image(filename, folder_path, model, output_folder, result_list):
     if filename.endswith(".jpg"):
         image_path = os.path.join(folder_path, filename)
-        #print(filename)
+        # print(filename)
         image = cv2.imread(image_path)
         detections = detect_traffic_signs_with_selective_search(image, model)
         boxes = np.array(detections)
@@ -361,7 +378,6 @@ def detection_images_in_folder(folder_path, model, csv_path):
 
 
 def select_region_and_predict(image_path, model):
-
     global ref_point, cropping, image, clone
     cropping = False
     ref_point = []
@@ -395,7 +411,7 @@ def select_region_and_predict(image_path, model):
 
         elif key == ord('c') and len(ref_point) == 2:
             roi = clone[ref_point[0][1]:ref_point[1][1], ref_point[0][0]:ref_point[1][0]]
-            #prediction = model.predict_window(roi)
+            # prediction = model.predict_window(roi)
             prediction_probabilities = model.predict_proba_window(roi)
 
             top_indices = prediction_probabilities.argsort()[0][-3:][::-1]
@@ -404,12 +420,14 @@ def select_region_and_predict(image_path, model):
 
             cv2.rectangle(image, ref_point[0], ref_point[1], (0, 255, 0), 2)
             text = f"Size: {ref_point[1][0] - ref_point[0][0]}x{ref_point[1][1] - ref_point[0][1]}"
-            cv2.putText(image, text, (ref_point[0][0], ref_point[0][1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-            
+            cv2.putText(image, text, (ref_point[0][0], ref_point[0][1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                        (0, 255, 0), 2)
+
             y_offset = ref_point[1][1] + 30
             for i, (cls, prob) in enumerate(zip(top_classes, top_probabilities)):
-                text = f"{i+1}: {cls} ({prob:.2f})"
-                cv2.putText(image, text, (ref_point[0][0], y_offset + i*30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                text = f"{i + 1}: {cls} ({prob:.2f})"
+                cv2.putText(image, text, (ref_point[0][0], y_offset + i * 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                            (0, 255, 0), 2)
 
             cv2.imshow("image", image)
             ref_point = []
@@ -421,9 +439,7 @@ def select_region_and_predict(image_path, model):
     cv2.destroyAllWindows()
 
 
-
 def build_detection_validation(label_path):
-
     csv_files = [file for file in os.listdir(label_path) if file.endswith('.csv')]
 
     dfs = []

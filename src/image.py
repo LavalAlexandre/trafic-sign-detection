@@ -26,9 +26,10 @@ class img:
             return parts[cropped_index + 1]
         except (ValueError, IndexError):
             # print(f"Warning: {self.name} could not be read.")
-            return None
+            return "none"
 
-    def color_preprocess(self, img):
+    @staticmethod
+    def color_preprocess(img):
         # Convert the image to LAB color space for better color normalization
         img_lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
         l_channel, a_channel, b_channel = cv2.split(img_lab)
@@ -44,7 +45,8 @@ class img:
 
         return cv2.split(img_normalized)
 
-    def compute_color_moments(self, image):
+    @staticmethod
+    def compute_color_moments(image):
         # Convert the image to HSV color space
         hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         # Compute the moments for each channel
@@ -63,20 +65,10 @@ class img:
             moments.extend([mean, std, skewness])
         return np.array(moments)
 
-    def compute_daist_feature(self, image):
-        img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        daisy_feature = daisy(
-            img_gray,
-            step=4,
-            radius=3,
-            rings=2,
-            histograms=8,
-            orientations=16,
-            normalization="l2",
-        ).flatten()
-        return daisy_feature
+    @staticmethod
 
-    def compute_hog_feature(self, image):
+    @staticmethod
+    def compute_hog_feature(image):
         # convert to grayscale
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         bins = 9
@@ -93,7 +85,8 @@ class img:
         ).flatten()
         return hog_feature
 
-    def compute_feu_color(self, image):
+    @staticmethod
+    def compute_feu_color(image):
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         # Define color ranges
@@ -127,7 +120,8 @@ class img:
 
         return np.array([red_pixels, green_pixels, orange_pixels, other_pixels])
 
-    def compute_brightness(self, image):
+    @staticmethod
+    def compute_brightness(image):
         hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
         brightness = hsv[:, :, 2]
         summed_brightness = np.sum(brightness, axis=1)
@@ -139,6 +133,31 @@ class img:
             # Handle the case where the max_brightness is zero
             summed_brightness = np.zeros_like(summed_brightness)
         return summed_brightness
+    @staticmethod
+    def compute_brightnessv2(image,num_boxes_x, num_boxes_y):
+        height, width, _ = image.shape
+        box_height = height // num_boxes_y
+        box_width = width // num_boxes_x
+        brightness_matrix = np.zeros((num_boxes_y, num_boxes_x))
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        brightness = hsv[:, :, 2]
+        for i in range(num_boxes_y):
+            for j in range(num_boxes_x):
+                start_x = j * box_width
+                end_x = (j + 1) * box_width if (j + 1) * box_width < width else width
+                start_y = i * box_height
+                end_y = (i + 1) * box_height if (i + 1) * box_height < height else height
+
+                box_brightness = brightness[start_y:end_y, start_x:end_x]
+                average_brightness = np.mean(box_brightness)
+                brightness_matrix[i, j] = average_brightness
+        max_brightness = np.max(brightness_matrix)
+        min_brightness = np.min(brightness_matrix)
+        if max_brightness != min_brightness:
+            brightness_matrix = (brightness_matrix - min_brightness) / (max_brightness - min_brightness)
+        else:
+            brightness_matrix = np.zeros_like(brightness_matrix)
+        return brightness_matrix.flatten()
 
     def preprocess(self):
         self.data = []
@@ -149,10 +168,11 @@ class img:
                 img = self.window
             img = cv2.resize(img, self.standard_size)
 
-            #self.data.extend(self.compute_daist_feature(img))
+            #self.data.extend(compute_daisy_feature(img))
             self.data.extend(self.compute_hog_feature(img))
             self.data.extend(self.compute_color_moments(img))
-            self.data.extend(self.compute_brightness(img))
+            #self.data.extend(self.compute_brightness(img))
+            self.data.extend(self.compute_brightnessv2(img, 4, 4))
             #self.data.extend(self.compute_feu_color(img))
             #print(f"Shape of img.data: {len(self.data)}")
 
@@ -160,3 +180,16 @@ class img:
             print(f"Error preprocessing: {e}")
             self.skip = True
             self.data = None
+
+def compute_daisy_feature(image):
+    img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    daisy_feature = daisy(
+        img_gray,
+        step=4,
+        radius=3,
+        rings=2,
+        histograms=8,
+        orientations=16,
+        normalization="l2",
+    ).flatten()
+    return daisy_feature

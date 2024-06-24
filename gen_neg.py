@@ -81,8 +81,8 @@ def iou(box1, box2):
 
 
 def get_negative_prediction(detections, validations, image_folder_path, negative_samples_dir):
-    if image_folder_path== "dataset/val/images" or image_folder_path== "dataset/test":
-        print("Cannot generate negative samples for validation or test set")
+    if image_folder_path== "dataset/test":
+        print("Cannot generate negative samples for test set")
         return
     if not os.path.exists(negative_samples_dir):
         os.makedirs(negative_samples_dir)
