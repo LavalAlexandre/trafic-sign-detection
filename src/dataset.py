@@ -25,7 +25,8 @@ class dataset:
         self.max_label = 0
         self.img_dir = img_dir
         self.load_imgs()
-        self.max_label = 200
+        #self.max_label /= 2
+        self.max_label = int(self.max_label*2/3)
         self.max_label *= label_size_factor
         if augment_path != "" and train and label_size_factor > 0:
             self.augment(augment_path, self.max_label)  # add aug img to self.images
@@ -47,15 +48,9 @@ class dataset:
         # now preprocess the data
         self.preprocess()
 
-        #remove half of the interdiction images
-
         interdiction_imgs = [img for img in self.images if img.label == "interdiction"]
-
-        for i in range(len(interdiction_imgs)//2):
+        for i in range(len(interdiction_imgs)//4):
             self.images.remove(interdiction_imgs[i])
-
-
-
 
 
         time_end = time.time()
@@ -91,6 +86,9 @@ class dataset:
                 print(f"Skipping image {new_img.name}")
                 continue
             else:
+                if new_img.data is None:
+                    print(f"Skipping image {new_img.name}")
+                    continue
                 augment_label_map[new_img.label].append(new_img)
 
         #print the size of all the augmented images

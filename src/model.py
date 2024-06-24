@@ -25,7 +25,7 @@ class model:
         self.n_jobs = n_jobs
 
     def save(self, path, name="model"):
-        model_path = path + f"/{name}_" + ".pkl"
+        model_path = path + f"/{name}" + ".pkl"
         joblib.dump(self.classifier, model_path)
 
     def predict_window(self, window):
@@ -42,14 +42,19 @@ class model:
 
         return self.classifier.predict_proba([window.data])
 
-    def train_svm(self, train_data, max_iter=1000, verbose=0):
+    def train_svm(self, train_data, val_data=None, max_iter=1000, verbose=0):
         self.name = "SVM"
         X = [img.data for img in train_data.images]
         y = [img.label for img in train_data.images]
         #print all y different values
         #convert all nonetype in y to "none"
         y = ["none" if i == None else i for i in y]
-
+        if val_data is not None:
+            X_val = [img.data for img in val_data.images]
+            y_val = [img.label for img in val_data.images]
+            y_val = ["none" if i == None else i for i in y_val]
+            X = X + X_val
+            y = y + y_val
 
         #print number of nan values
         print(f"Number of nan values in X: {np.isnan(X).sum()}")
@@ -72,8 +77,21 @@ class model:
         print(
             f"Accuracy on test data: {accuracy_score(y_test, self.classifier.predict(X_test))}"
         )
+
+        y_test_pred = self.classifier.predict(X_test)
+
         #classification_report on test data
         print(classification_report(y_test, self.classifier.predict(X_test)))
+        cm = confusion_matrix(y_test, y_test_pred, normalize='true', labels=self.classifier.classes_)
+
+        # Plot the confusion matrix
+        sns.heatmap(cm, annot=True, cmap="Blues", xticklabels=self.classifier.classes_,
+                    yticklabels=self.classifier.classes_)
+        plt.xlabel("Predicted")
+        plt.ylabel("True")
+        plt.title("Confusion Matrix")
+        plt.show()
+
 
 
     def train_elastic_net(self, train_data, max_iter=1000, verbose=0):
@@ -239,12 +257,12 @@ class model:
         cm = confusion_matrix(y, y_pred, normalize='true', labels=self.classifier.classes_)
 
         # Plot the confusion matrix
-        sns.heatmap(cm, annot=True, cmap="Blues")
+        sns.heatmap(cm, annot=True, cmap="Blues", xticklabels=self.classifier.classes_,
+                    yticklabels=self.classifier.classes_)
         plt.xlabel("Predicted")
         plt.ylabel("True")
         plt.title("Confusion Matrix")
         plt.show()
-        # %%
 
         #plot the wrong predictions with the both the correct and the wrong labels
         wrong_predictions = [img for img, label, pred in zip(val_data.images, y, y_pred) if label != pred]
