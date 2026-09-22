@@ -1,25 +1,34 @@
-from sklearn.model_selection import train_test_split, KFold, learning_curve
+from sklearn.model_selection import train_test_split, learning_curve
 from sklearn.metrics import accuracy_score
 from sklearn.linear_model import LogisticRegression
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report
 from sklearn.multiclass import OneVsRestClassifier
-from xgboost import XGBClassifier
 from sklearn.model_selection import GridSearchCV
 from sklearn.svm import SVC
 import warnings
 import joblib
-import datetime
 from src.image import img
 from sklearn.metrics import confusion_matrix
 import seaborn as sns
 import cv2
 
+
+def plot_confusion_matrix(y_true, y_pred, labels):
+    cm = confusion_matrix(y_true, y_pred, normalize="true", labels=labels)
+    sns.heatmap(cm, annot=True, fmt=".2f", cmap="Blues", xticklabels=labels, yticklabels=labels)
+    plt.xlabel("Predicted")
+    plt.ylabel("True")
+    plt.title("Confusion Matrix")
+    plt.show()
+
+
 class model:
-    def __init__(self, seed=42, n_jobs=-1):
+    def __init__(self, seed=42, n_jobs=-1, standard_size=(64, 64)):
         self.seed = seed
-        self.standard_size = (64, 64)
+        # Must match the standard_size of the dataset the classifier was trained on
+        self.standard_size = standard_size
         self.classifier = None
         self.name = None
         self.n_jobs = n_jobs
@@ -28,35 +37,30 @@ class model:
         model_path = path + f"/{name}" + ".pkl"
         joblib.dump(self.classifier, model_path)
 
+    def load(self, model_path):
+        self.classifier = joblib.load(model_path)
+        self.name = type(self.classifier).__name__
+        return self
+
     def predict_window(self, window):
-        window = img(self.standard_size, window=window)
-
-        window.preprocess()
-
+        window = img(standard_size=self.standard_size, window=window)
         return self.classifier.predict([window.data])
 
     def predict_proba_window(self, window):
-        window = img(self.standard_size, window=window)
-
-        window.preprocess()
-
+        window = img(standard_size=self.standard_size, window=window)
         return self.classifier.predict_proba([window.data])
 
-    def train_svm(self, train_data, val_data=None, max_iter=1000, verbose=0):
+    def predict(self, window):
+        """Common classifier interface used by src.detection: returns (label, confidence)."""
+        probabilities = self.predict_proba_window(window)[0]
+        best = np.argmax(probabilities)
+        return self.classifier.classes_[best], probabilities[best]
+
+    def train_svm(self, train_data, max_iter=1000, verbose=0):
         self.name = "SVM"
         X = [img.data for img in train_data.images]
         y = [img.label for img in train_data.images]
-        #print all y different values
-        #convert all nonetype in y to "none"
-        y = ["none" if i == None else i for i in y]
-        if val_data is not None:
-            X_val = [img.data for img in val_data.images]
-            y_val = [img.label for img in val_data.images]
-            y_val = ["none" if i == None else i for i in y_val]
-            X = X + X_val
-            y = y + y_val
 
-        #print number of nan values
         print(f"Number of nan values in X: {np.isnan(X).sum()}")
 
         self.classifier = SVC(
@@ -73,26 +77,11 @@ class model:
             X, y, test_size=0.2, random_state=self.seed
         )
         self.classifier.fit(X_train, y_train)
-        # on test data accuracy_score
-        print(
-            f"Accuracy on test data: {accuracy_score(y_test, self.classifier.predict(X_test))}"
-        )
 
         y_test_pred = self.classifier.predict(X_test)
-
-        #classification_report on test data
-        print(classification_report(y_test, self.classifier.predict(X_test)))
-        cm = confusion_matrix(y_test, y_test_pred, normalize='true', labels=self.classifier.classes_)
-
-        # Plot the confusion matrix
-        sns.heatmap(cm, annot=True, cmap="Blues", xticklabels=self.classifier.classes_,
-                    yticklabels=self.classifier.classes_)
-        plt.xlabel("Predicted")
-        plt.ylabel("True")
-        plt.title("Confusion Matrix")
-        plt.show()
-
-
+        print(f"Accuracy on held-out train split: {accuracy_score(y_test, y_test_pred)}")
+        print(classification_report(y_test, y_test_pred))
+        plot_confusion_matrix(y_test, y_test_pred, self.classifier.classes_)
 
     def train_elastic_net(self, train_data, max_iter=1000, verbose=0):
         self.name = "Elastic Net"
@@ -133,19 +122,12 @@ class model:
             "shrinking": [True, False],
         }
 
-        # Initialize the SVM model
-        svm = SVC()
-
-        # Initialize GridSearchCV
         grid_search = GridSearchCV(
-            estimator=svm, param_grid=tuned_parameters, cv=5, verbose=verbose, n_jobs=-1
+            estimator=SVC(probability=True), param_grid=tuned_parameters, cv=5, verbose=verbose, n_jobs=-1
         )
-
-        # Fit the grid search to the data
         grid_search.fit(X, y)
 
-        # Store the best model and parameters
-        self.model = grid_search.best_estimator_
+        self.classifier = grid_search.best_estimator_
         self.best_params = grid_search.best_params_
         self.best_score = grid_search.best_score_
 
@@ -155,9 +137,7 @@ class model:
 
     def train_lr(self, train_data, max_iter=1000, verbose=0):
         self.name = "Logistic Regression"
-        X = train_data.data
-        # normalize the data
-        # X = np.array(X) / 255
+        X = [img.data for img in train_data.images]
         y = [img.label for img in train_data.images]
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, random_state=self.seed
@@ -178,8 +158,6 @@ class model:
     def train_dual_lr(self, train_data, max_iter=1000, verbose=0):
         self.name = "dual liblinear Logistic Regression"
         X = [img.data for img in train_data.images]
-        # normalize the data
-        # X = np.array(X) / 255
         y = [img.label for img in train_data.images]
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, random_state=self.seed
@@ -198,10 +176,11 @@ class model:
         )
 
     def train_xgboost(self, train_data, verbose=0):
+        # Optional dependency: `uv sync --extra xgboost`
+        from xgboost import XGBClassifier
+
         self.name = "XGBoost"
         X = [img.data for img in train_data.images]
-        # normalize the data
-        # X = np.array(X) / 255
         y = [img.label for img in train_data.images]
         y = train_data.LabelEncoder.transform(y)
         X_train, X_test, y_train, y_test = train_test_split(
@@ -219,8 +198,6 @@ class model:
     def train_OneVsRest(self, train_data, max_iter=100, verbose=0):
         self.name = "OneVsRest"
         X = [img.data for img in train_data.images]
-        # normalize the data
-        # X = np.array(X) / 255
         y = [img.label for img in train_data.images]
 
         X_train, X_test, y_train, y_test = train_test_split(
@@ -229,10 +206,6 @@ class model:
         base_clf = LogisticRegression(
             random_state=self.seed, max_iter=max_iter, verbose=verbose
         )
-        # base_clf = SVC(kernel='linear', random_state=self.seed, class_weight='balanced')
-        # from sklearn.ensemble import GradientBoostingClassifier
-        # base_clf = GradientBoostingClassifier(n_estimators=100, random_state=self.seed,verbose=verbose)
-        # base_clf = XGBClassifier(n_estimators=100, random_state=self.seed, verbosity=verbose)
         self.classifier = OneVsRestClassifier(base_clf)
         self.classifier.fit(X_train, y_train)
         # on test data accuracy_score
@@ -240,46 +213,30 @@ class model:
             f"Accuracy on test data: {accuracy_score(y_test, self.classifier.predict(X_test))}"
         )
 
-    def evaluate(self, val_data):
+    def evaluate(self, val_data, show_errors=False):
         X = [img.data for img in val_data.images]
-        # X = np.array(X) / 255
         y = [img.label for img in val_data.images]
         if self.name == "XGBoost":
             y = val_data.LabelEncoder.transform(y)
         y_pred = self.classifier.predict(X)
-        print(f"Accuracy on validation data: {accuracy_score(y, y_pred)}")
+        accuracy = accuracy_score(y, y_pred)
+        print(f"Accuracy on validation data: {accuracy}")
+        print(classification_report(y, y_pred))
+        plot_confusion_matrix(y, y_pred, self.classifier.classes_)
 
-        report = classification_report(y, y_pred)
-        print(report)
+        if show_errors:
+            for image, label, pred in zip(val_data.images, y, y_pred):
+                if label != pred:
+                    plt.imshow(cv2.cvtColor(cv2.imread(image.path + image.name), cv2.COLOR_BGR2RGB))
+                    plt.title(f"Correct label: {label}, Predicted label: {pred}")
+                    plt.show()
 
-        # plot confusion matrix percentage with correct labels
+        return accuracy
 
-        cm = confusion_matrix(y, y_pred, normalize='true', labels=self.classifier.classes_)
-
-        # Plot the confusion matrix
-        sns.heatmap(cm, annot=True, cmap="Blues", xticklabels=self.classifier.classes_,
-                    yticklabels=self.classifier.classes_)
-        plt.xlabel("Predicted")
-        plt.ylabel("True")
-        plt.title("Confusion Matrix")
-        plt.show()
-
-        #plot the wrong predictions with the both the correct and the wrong labels
-        wrong_predictions = [img for img, label, pred in zip(val_data.images, y, y_pred) if label != pred]
-        for img in wrong_predictions:
-            plt.imshow(cv2.imread(img.path + img.name))
-            plt.title(f"Correct label: {img.label}, Predicted label: {y_pred[val_data.images.index(img)]}")
-
-            plt.show()
-
-
-        return accuracy_score(y, y_pred)
-
-    def plot_learning_curve(self, train_data, max_iter=2000, verbose=0):
+    def plot_learning_curve(self, train_data, verbose=0):
         X = [img.data for img in train_data.images]
         y = [img.label for img in train_data.images]
 
-        # X = np.array(X) / 255
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, random_state=self.seed
         )
