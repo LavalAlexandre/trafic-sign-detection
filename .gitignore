@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+.ipynb_checkpoints/
+.pytest_cache/
+
+# Data and generated artifacts
+dataset/
+output_images/
+detections*.csv
+validations.csv
+*.pth
