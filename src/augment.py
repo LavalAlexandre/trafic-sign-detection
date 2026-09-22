@@ -95,11 +95,14 @@ class ImageBatchProcessor:
         print(f"Loaded {len(results)} images and labels successfully.")
         with ProcessPoolExecutor() as executor:
             print(f"Augmenting images with {nb_augmentation} augmentations each...")
-            augmented_image_count = 0
-            for i, result in enumerate(results):
-                if result[0] is not None:  # Check if image is loaded
-                    augmented_image_count += 1
-                    executor.submit(self._augment_and_save_single_image, (i, result, nb_augmentation))
+            futures = [
+                executor.submit(self._augment_and_save_single_image, (i, result, nb_augmentation))
+                for i, result in enumerate(results)
+                if result[0] is not None  # Check if image is loaded
+            ]
+            for future in futures:
+                future.result()  # re-raise worker exceptions instead of silently dropping them
+            augmented_image_count = len(futures)
 
         time_end = time.time()
         print(f"Total augmentation time: {time_end - time_start:.2f} seconds")
@@ -121,7 +124,7 @@ class ImageBatchProcessor:
         bbs = []
         if os.path.exists(label_path):
             try:
-                df = pd.read_csv(label_path)
+                df = pd.read_csv(label_path, header=None)
                 if df.empty:
                     #print(f"No bounding boxes found for {image_file}.")
                     return None
