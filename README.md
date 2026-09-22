@@ -52,6 +52,5 @@ uv run pytest
 ```
 The tests run both pipelines end to end on a small synthetic dataset.
 
-## Authors
-- Laval Alexandre
-- MEI Yiguang
+## Author
+Laval Alexandre
