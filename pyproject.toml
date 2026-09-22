@@ -1,0 +1,53 @@
+[project]
+name = "trafic-sign-detection"
+version = "0.1.0"
+description = "Road sign and traffic light detection with classical ML (HOG + SVM) and deep learning (ResNet18)"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+authors = [
+    { name = "Laval Alexandre" },
+    { name = "MEI Yiguang" },
+]
+dependencies = [
+    "imgaug",
+    "joblib",
+    "matplotlib",
+    "numpy<2",  # imgaug uses np.sctypes, removed in numpy 2
+    "opencv-python",
+    "pandas",
+    "pillow",
+    "scikit-image",
+    "scikit-learn",
+    "scipy",
+    "seaborn",
+    "selectivesearch",
+    "torch",
+    "torchvision",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+# Only needed for model.train_xgboost; on macOS it also needs `brew install libomp`
+xgboost = ["xgboost"]
+
+[dependency-groups]
+dev = [
+    "ipykernel",
+    "pytest",
+]
+
+[tool.uv]
+package = false
+# imgaug pulls in opencv-python-headless, which clashes with opencv-python (needed for cv2.imshow)
+override-dependencies = ["opencv-python-headless; sys_platform == 'never'"]
+
+[tool.uv.extra-build-dependencies]
+# imgaug's setup.py imports pkg_resources, which setuptools>=81 no longer ships
+imgaug = ["setuptools<81"]
+
+[tool.uv.sources]
+# Fork of imgaug patched for recent numpy versions
+imgaug = { git = "https://github.com/MasterTrtle/imgaug.git" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
