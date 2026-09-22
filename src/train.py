@@ -8,37 +8,24 @@ def train(
     val_path,
     save_path="src/models",
     seed=42,
-    standard_size=(32, 32),
-    label_size_factor=-1,
+    standard_size=(64, 64),
+    label_size_factor=1,
     max_iter=10000,
 ):
-    # load the dataset
     train_data = dataset(
         img_dir=train_path,
         augment_path=aug_train_path,
         label_size_factor=label_size_factor,
         standard_size=standard_size,
+        seed=seed,
     )
     val_data = dataset(val_path, train=False, standard_size=standard_size)
-    my_model = model(seed)
-    # chose one the models in src.model
-    my_model.train_svm(train_data, verbose=1, max_iter=max_iter)
-    # my_model.plot_learning_curve(train_data, verbose=1)
+    my_model = model(seed, standard_size=standard_size)
+    my_model.train_svm(train_data, verbose=0, max_iter=max_iter)
     print(
-        f"Model trained with {my_model.name} with seed {seed},max_iter {max_iter}, standard_size {standard_size}, label_size_factor {label_size_factor}"
+        f"Model trained with {my_model.name} with seed {seed}, max_iter {max_iter}, standard_size {standard_size}, label_size_factor {label_size_factor}"
     )
-    # evaluate the model
     accuracy = my_model.evaluate(val_data)
-    print("Model accuracy with Logistic Regression: {}".format(accuracy))
-    # save the model
+    print(f"Validation accuracy with {my_model.name}: {accuracy}")
     my_model.save(save_path)
-
-
-"""
-    my_model.train_svm(train_data)
-    print("Model trained with SVM")
-    # evaluate the model
-    accuracy = my_model.evalutate(val_data)
-    print("Model accuracy with SVM: {}".format(accuracy))
     return my_model
-"""

@@ -1,8 +1,9 @@
-import os
 import cv2
 import numpy as np
 from skimage.feature import daisy, hog
 from scipy.stats import skew
+
+from src.labels import label_from_filename
 
 
 class img:
@@ -13,20 +14,11 @@ class img:
         self.skip = False
         self.path = path
         self.name = name
-        self.label = self.get_label_from_name()
+        self.label = label_from_filename(name)
         self.standard_size = standard_size
         self.train = train
         self.window = window
         self.preprocess()
-
-    def get_label_from_name(self):
-        parts = self.name.split("_")
-        try:
-            cropped_index = parts.index("cropped")
-            return parts[cropped_index + 1]
-        except (ValueError, IndexError):
-            # print(f"Warning: {self.name} could not be read.")
-            return "none"
 
     @staticmethod
     def color_preprocess(img):
@@ -64,8 +56,6 @@ class img:
                 skewness = 0
             moments.extend([mean, std, skewness])
         return np.array(moments)
-
-    @staticmethod
 
     @staticmethod
     def compute_hog_feature(image):
@@ -107,22 +97,17 @@ class img:
         orange_mask = cv2.inRange(image_rgb, lower_orange, upper_orange)
 
         # Count the number of pixels for each color
-        red_pixels = np.sum(red_mask > 0)
-        green_pixels = np.sum(green_mask > 0)
-        orange_pixels = np.sum(orange_mask > 0)
-        other_pixels = image.shape[0] * image.shape[1] - red_pixels - green_pixels - orange_pixels
-
-        #normalize the values
-        red_pixels /= image.shape[0] * image.shape[1]
-        green_pixels /= image.shape[0] * image.shape[1]
-        orange_pixels /= image.shape[0] * image.shape[1]
-        other_pixels /= image.shape[0] * image.shape[1]
+        n_pixels = image.shape[0] * image.shape[1]
+        red_pixels = np.sum(red_mask > 0) / n_pixels
+        green_pixels = np.sum(green_mask > 0) / n_pixels
+        orange_pixels = np.sum(orange_mask > 0) / n_pixels
+        other_pixels = 1 - red_pixels - green_pixels - orange_pixels
 
         return np.array([red_pixels, green_pixels, orange_pixels, other_pixels])
 
     @staticmethod
     def compute_brightness(image):
-        hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         brightness = hsv[:, :, 2]
         summed_brightness = np.sum(brightness, axis=1)
 
@@ -133,8 +118,9 @@ class img:
             # Handle the case where the max_brightness is zero
             summed_brightness = np.zeros_like(summed_brightness)
         return summed_brightness
+
     @staticmethod
-    def compute_brightnessv2(image,num_boxes_x, num_boxes_y):
+    def compute_brightnessv2(image, num_boxes_x, num_boxes_y):
         height, width, _ = image.shape
         box_height = height // num_boxes_y
         box_width = width // num_boxes_x
@@ -168,18 +154,15 @@ class img:
                 img = self.window
             img = cv2.resize(img, self.standard_size)
 
-            #self.data.extend(compute_daisy_feature(img))
             self.data.extend(self.compute_hog_feature(img))
             self.data.extend(self.compute_color_moments(img))
-            #self.data.extend(self.compute_brightness(img))
             self.data.extend(self.compute_brightnessv2(img, 4, 4))
-            #self.data.extend(self.compute_feu_color(img))
-            #print(f"Shape of img.data: {len(self.data)}")
 
         except Exception as e:
-            print(f"Error preprocessing: {e}")
+            print(f"Error preprocessing {self.name}: {e}")
             self.skip = True
             self.data = None
+
 
 def compute_daisy_feature(image):
     img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
